@@ -1,0 +1,68 @@
+/**
+ * Reading aids drawn around the text without touching it (overlay.js).
+ *
+ * #overlay must NOT become a stacking context — no z-index, contain, opacity,
+ * transform, filter or isolation on it. Its children carry their own z-index
+ * inside #app's stacking context: stripes and the bar sit at 0, *under* #doc
+ * (z-index: 1 in reader.css) so glyphs stay crisp, while the dim veils sit at
+ * 2, *over* it, which is the only way a veil can dim anything.
+ *
+ * Every colour and opacity is an --ov-* property that overlay.js sets on
+ * #overlay from the settings object, so this file never guesses defaults.
+ */
+
+#overlay {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+
+#overlay > * {
+  position: absolute;
+  left: 0;
+  right: 0;
+  contain: strict;
+}
+#overlay > [hidden] { display: none; }
+
+/* -------------------------------------------------------------- stripes --- */
+
+#overlay .ov-stripe {
+  z-index: 0;
+  left: var(--ov-col-l);
+  right: auto;
+  width: var(--ov-col-w);
+  border-radius: 2px;
+  background: var(--ov-stripe-c1);
+  opacity: var(--ov-stripe-op);
+}
+#overlay .ov-stripe.alt { background: var(--ov-stripe-c2); }
+
+/* ------------------------------------------------------- descending bar --- */
+
+#overlay .ov-bar {
+  z-index: 0;
+  top: 0;
+  left: var(--ov-col-l);
+  right: auto;
+  width: var(--ov-col-w);
+  height: var(--ov-bar-h);
+  border-radius: 3px;
+  background: var(--ov-bar-c);
+  opacity: var(--ov-bar-op);
+  will-change: transform;
+  transition: transform .22s cubic-bezier(.22, .61, .36, 1);
+}
+/* A seek across the document snaps; the class is dropped on the next frame. */
+#overlay .ov-bar.ov-jump,
+#overlay.ov-nomotion .ov-bar { transition: none; }
+
+/* ------------------------------------------------------------ dim veils --- */
+
+#overlay .ov-veil {
+  z-index: 2;
+  background: var(--r-bg);
+  opacity: var(--ov-dim);
+}

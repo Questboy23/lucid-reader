@@ -1,0 +1,805 @@
+/**
+ * Reader shell + the typography contract.
+ *
+ * The rules under "the text itself" are the load-bearing ones: every setting
+ * reaches the text through a CSS custom property, and nothing that highlights a
+ * word is allowed to change its metrics. See markup.js for why.
+ */
+
+:root {
+  /* Defaults mirror schema.js so the first paint is never unstyled. */
+  --r-font: 'Literata', Georgia, serif;
+  --r-zoom: 1;
+  --r-fs: 19px;
+  --r-lh: 1.65;
+  --r-ls: 0px;
+  --r-ws: 0px;
+  --r-ps: 14px;
+  --r-cw: 68ch;
+  --r-fw: 400;
+  --r-align: left;
+  --r-hyphens: manual;
+  --r-indent: 0;
+  --r-bg: #f6f0e2;
+  --r-fg: #3a3229;
+  --r-pad: 48px;
+
+  --r-bi-rest: 0.75;
+  --r-bi-weight: 700;
+  --r-bi-color: inherit;
+  --r-fl-color: #c2410c;
+  --r-fl-weight: inherit;
+
+  --r-stripe: #fff59d;
+  --r-stripe-op: 0.25;
+  --r-stripe2: #b3e5fc;
+  --r-dim: 0.6;
+  --r-pacer: #e11d48;
+  --r-bar: #e11d48;
+  --r-bar-op: 0.18;
+  --r-bar-h: 40px;
+  --r-rail: #94a3b8;
+  --r-rail-w: 2px;
+  --r-rail-gap: 16px;
+
+  --r-rsvp-fs: 56px;
+  --r-rsvp-bg: #0f172a;
+  --r-rsvp-fg: #f8fafc;
+  --r-orp: #f43f5e;
+  --r-orp-weight: 800;
+
+  /* Chrome (toolbar/panel) is derived from the page colours so presets don't
+     leave the UI clashing with the page. */
+  --ui-bg: color-mix(in srgb, var(--r-bg) 88%, var(--r-fg));
+  --ui-bg-2: color-mix(in srgb, var(--r-bg) 78%, var(--r-fg));
+  --ui-fg: color-mix(in srgb, var(--r-fg) 92%, var(--r-bg));
+  --ui-fg-dim: color-mix(in srgb, var(--r-fg) 62%, var(--r-bg));
+  --ui-line: color-mix(in srgb, var(--r-fg) 16%, var(--r-bg));
+  --ui-accent: var(--r-pacer);
+  --ui-radius: 9px;
+  --tb-h: 52px;
+  --sb-h: 26px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+  background: var(--r-bg);
+  color: var(--r-fg);
+  font-family: 'Inter', system-ui, sans-serif;
+  overscroll-behavior: none;
+}
+
+#app {
+  height: 100%;
+  display: grid;
+  grid-template-rows: var(--tb-h) 3px 1fr var(--sb-h);
+  position: relative;
+  isolation: isolate;
+}
+
+/* ------------------------------------------------------------- top bar --- */
+
+#topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 10px;
+  background: var(--ui-bg);
+  border-bottom: 1px solid var(--ui-line);
+  font-size: 13px;
+  user-select: none;
+  z-index: 4;
+  min-width: 0;
+  max-width: 100vw;
+  overflow: hidden;
+}
+#app { max-width: 100vw; overflow-x: hidden; }
+
+.tb-group { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.tb-left { flex: 1 1 0; }
+/* The controls keep their size; the mode bar is what gives way when narrow. */
+.tb-right { flex: 1 0 auto; justify-content: flex-end; }
+
+.doctitle { min-width: 0; line-height: 1.25; }
+#doc-title {
+  display: block;
+  font-weight: 600;
+  color: var(--ui-fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 34ch;
+}
+.sub { display: block; font-size: 11px; color: var(--ui-fg-dim); }
+
+#modes {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--ui-bg-2);
+  border-radius: 999px;
+  /* Six modes don't fit a narrow window: let the bar scroll sideways rather
+     than stretch the whole page past the viewport. */
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+#modes::-webkit-scrollbar { display: none; }
+#modes button { flex: 0 0 auto; white-space: nowrap; }
+#modes button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--ui-fg-dim);
+  font: inherit;
+  font-size: 12.5px;
+  padding: 6px 13px;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .13s, color .13s;
+}
+#modes button:hover { color: var(--ui-fg); }
+#modes button[aria-selected="true"] {
+  background: var(--r-bg);
+  color: var(--ui-fg);
+  box-shadow: 0 1px 3px rgb(0 0 0 / .12);
+  font-weight: 600;
+}
+
+.iconbtn {
+  appearance: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ui-fg-dim);
+  cursor: pointer;
+}
+.iconbtn:hover { background: var(--ui-bg-2); color: var(--ui-fg); }
+.iconbtn svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.iconbtn.primary {
+  background: var(--ui-accent);
+  color: #fff;
+}
+.iconbtn.primary:hover { filter: brightness(1.08); }
+.iconbtn.primary svg { fill: currentColor; stroke: none; }
+#btn-play .i-pause { display: none; }
+#app.playing #btn-play .i-play { display: none; }
+#app.playing #btn-play .i-pause { display: block; stroke: currentColor; stroke-width: 2.4; fill: none; }
+
+#playgroup { display: flex; align-items: center; gap: 4px; }
+#wpmbox {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  margin-left: 4px;
+  padding: 3px 7px;
+  border-radius: 8px;
+  background: var(--ui-bg-2);
+  color: var(--ui-fg-dim);
+  font-size: 11px;
+}
+#wpm {
+  width: 4.2ch;
+  border: 0;
+  background: transparent;
+  color: var(--ui-fg);
+  font: inherit;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  text-align: right;
+  -moz-appearance: textfield;
+}
+#wpm::-webkit-outer-spin-button, #wpm::-webkit-inner-spin-button { appearance: none; margin: 0; }
+#wpm:focus { outline: none; }
+
+/* Play controls are meaningless in Normal and Original-PDF modes. */
+#app[data-mode="normal"] #playgroup,
+#app[data-mode="pdf"] #playgroup { display: none; }
+
+#progress { background: var(--ui-line); z-index: 4; }
+#progress i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--ui-accent);
+  transition: width .2s linear;
+}
+#app.reduce-motion #progress i { transition: none; }
+
+/* --------------------------------------------------------------- stage --- */
+
+#stage { position: relative; min-height: 0; transition: margin-right .18s ease; }
+
+/**
+ * With the panel open there is room to move the text out from under it on a
+ * wide window, so the user can see their changes land on the real document.
+ * On a narrow window the panel floats over the text with a scrim instead.
+ */
+@media (min-width: 1120px) {
+  /* The drawer floats over the text; the column never moves. */
+}
+#app.reduce-motion #stage { transition: none; }
+
+#scroller {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  outline: none;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ui-line) transparent;
+}
+#app[data-mode="pdf"] #scroller,
+#app[data-mode="rsvp"] #scroller { visibility: hidden; pointer-events: none; }
+
+/* Paginated mode: the scroller stops scrolling and pages are clipped. */
+#app.paginated #scroller { overflow: hidden; }
+
+#measure {
+  position: relative;
+  min-height: 100%;
+  padding: calc(var(--r-pad) * var(--r-zoom)) 0;
+  display: flex;
+  justify-content: center;
+}
+
+/* ------------------------------------------------------ the text itself --- */
+
+#doc {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: var(--r-cw);
+  padding-inline: max(16px, calc(var(--r-pad) * var(--r-zoom) * .5));
+
+  font-family: var(--r-font);
+  font-size: calc(var(--r-fs) * var(--r-zoom));
+  font-weight: var(--r-fw);
+  line-height: var(--r-lh);
+  letter-spacing: calc(var(--r-ls) * var(--r-zoom));
+  word-spacing: calc(var(--r-ws) * var(--r-zoom));
+  text-align: var(--r-align);
+  hyphens: var(--r-hyphens);
+  -webkit-hyphens: var(--r-hyphens);
+  color: var(--r-fg);
+  /* Justified text with no hyphenation otherwise opens rivers of whitespace. */
+  text-wrap: pretty;
+}
+
+#doc .blk { margin: 0; font-weight: inherit; }
+#doc .blk + .blk { margin-top: calc(var(--r-ps) * var(--r-zoom)); }
+#doc p.blk + p.blk { text-indent: var(--r-indent); }
+
+#doc h1.blk, #doc h2.blk, #doc h3.blk {
+  font-weight: calc(var(--r-fw) + 200);
+  line-height: 1.25;
+  text-indent: 0;
+  text-align: initial;
+  margin-top: calc(var(--r-ps) * var(--r-zoom) * 2);
+  letter-spacing: calc((var(--r-ls) - .2) * var(--r-zoom));
+}
+#doc h1.blk { font-size: 1.5em; }
+#doc h2.blk { font-size: 1.28em; }
+#doc h3.blk { font-size: 1.1em; }
+#doc .blk:first-child { margin-top: 0; }
+
+#doc blockquote.blk {
+  padding-inline-start: 1.1em;
+  border-inline-start: 2px solid color-mix(in srgb, var(--r-fg) 25%, transparent);
+  font-style: italic;
+  text-indent: 0;
+}
+#doc li.blk {
+  display: list-item;
+  list-style: none;
+  padding-inline-start: 1.6em;
+  text-indent: 0;
+}
+#doc li.blk::before {
+  content: attr(data-marker);
+  display: inline-block;
+  width: 1.6em;
+  margin-inline-start: -1.6em;
+  color: var(--ui-fg-dim);
+}
+#doc pre.blk {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: .9em;
+  white-space: pre-wrap;
+  text-indent: 0;
+  text-align: left;
+}
+
+/* Word spans MUST stay inline: anything else changes line breaking. */
+#doc .w { display: inline; }
+
+/* Static decorations (applied before measuring — safe to affect metrics). */
+#doc .bi { font-weight: var(--r-bi-weight); color: var(--r-bi-color); }
+#doc .bx { opacity: var(--r-bi-rest); }
+#doc .fl { color: var(--r-fl-color); font-weight: var(--r-fl-weight); }
+
+/**
+ * Live highlight: colour / background / box-shadow only.
+ * box-shadow widens the highlight past the glyph box without taking up space,
+ * which is how the pacer gets a comfortable pill without nudging the text.
+ */
+#doc .w.cur {
+  background: color-mix(in srgb, var(--r-pacer) 24%, transparent);
+  box-shadow: 0 0 0 .14em color-mix(in srgb, var(--r-pacer) 24%, transparent);
+  border-radius: 3px;
+}
+#app.pacer-nobg #doc .w.cur { background: transparent; box-shadow: none; }
+#app.pacer-tint #doc .w.cur { color: var(--r-pacer); }
+#app.pacer-underline #doc .w.cur {
+  text-decoration: underline;
+  text-decoration-color: var(--r-pacer);
+  text-decoration-thickness: .1em;
+  text-underline-offset: .16em;
+}
+/* Auto-scroll can suppress the word highlight entirely. */
+#app.hide-word #doc .w.cur { background: none; box-shadow: none; color: inherit; text-decoration: none; }
+
+#doc .pagemark {
+  height: 0;
+  margin: calc(var(--r-ps) * var(--r-zoom) * 1.6) 0;
+  border-top: 1px dashed color-mix(in srgb, var(--r-fg) 22%, transparent);
+  position: relative;
+}
+
+::selection { background: color-mix(in srgb, var(--ui-accent) 30%, transparent); }
+
+/* --------------------------------------------------------- original PDF --- */
+
+#pdfview {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  padding: 20px 0 40px;
+  background: color-mix(in srgb, var(--r-bg) 82%, #000);
+  text-align: center;
+}
+#pdfview[hidden] { display: none; }
+#pdfview .pdfpage {
+  display: block;
+  margin: 0 auto 16px;
+  max-width: calc(100% - 32px);
+  height: auto;
+  background: #fff;
+  box-shadow: 0 2px 14px rgb(0 0 0 / .28);
+}
+#pdfview .pdfpage-ph {
+  display: block;
+  margin: 0 auto 16px;
+  background: color-mix(in srgb, var(--r-bg) 60%, #fff);
+}
+
+/* ------------------------------------------------------------ statusbar --- */
+
+#statusbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 12px;
+  background: var(--ui-bg);
+  border-top: 1px solid var(--ui-line);
+  color: var(--ui-fg-dim);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+  z-index: 4;
+}
+
+/* ---------------------------------------------------------------- rails --- */
+
+.rail {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--r-rail-w);
+  background: var(--r-rail);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .15s;
+}
+#app.rails .rail { opacity: .8; }
+.rail .grip {
+  position: absolute;
+  inset-block: 0;
+  inset-inline: -7px;
+  cursor: col-resize;
+  pointer-events: auto;
+}
+/* The grips stay draggable even when rails are hidden. */
+#measure > .rail { pointer-events: none; }
+#measure > .rail > .grip { pointer-events: auto; }
+#app.resizing { cursor: col-resize; user-select: none; }
+
+/* ------------------------------------------------ overlays / dialogs ----- */
+
+#welcome, #loading, #error, #dropzone {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--r-bg) 92%, transparent);
+  backdrop-filter: blur(3px);
+}
+#welcome[hidden], #loading[hidden], #error[hidden], #dropzone[hidden] { display: none; }
+
+.w-card, .l-card, .e-card {
+  max-width: 460px;
+  padding: 30px 32px;
+  border-radius: 16px;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-line);
+  box-shadow: 0 18px 50px rgb(0 0 0 / .18);
+  text-align: center;
+}
+.w-card h1 { margin: 0 0 6px; font-size: 22px; letter-spacing: -.01em; }
+.w-card p, .e-card p { margin: 0 0 16px; color: var(--ui-fg-dim); font-size: 13.5px; line-height: 1.5; }
+.w-note { font-size: 12px !important; margin: 14px 0 0 !important; }
+.w-actions { display: flex; gap: 8px; justify-content: center; }
+
+.btn {
+  appearance: none;
+  border: 1px solid var(--ui-line);
+  background: var(--ui-bg-2);
+  color: var(--ui-fg);
+  font: inherit;
+  font-size: 13px;
+  padding: 8px 14px;
+  border-radius: var(--ui-radius);
+  cursor: pointer;
+}
+.btn:hover { background: var(--ui-line); }
+.btn.primary { background: var(--ui-accent); border-color: transparent; color: #fff; }
+.btn.primary:hover { filter: brightness(1.07); }
+
+.spinner {
+  width: 26px;
+  height: 26px;
+  margin: 0 auto 12px;
+  border: 2.5px solid var(--ui-line);
+  border-top-color: var(--ui-accent);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+#app.reduce-motion .spinner { animation-duration: 2s; }
+
+#loading-text { font-size: 13px; color: var(--ui-fg-dim); }
+#loading-bar {
+  width: 190px;
+  height: 3px;
+  margin: 12px auto 0;
+  border-radius: 2px;
+  background: var(--ui-line);
+  overflow: hidden;
+}
+#loading-bar i { display: block; height: 100%; width: 0; background: var(--ui-accent); transition: width .15s; }
+
+#dropzone { background: color-mix(in srgb, var(--ui-accent) 12%, var(--r-bg)); }
+#dropzone > div {
+  padding: 26px 40px;
+  border: 2px dashed var(--ui-accent);
+  border-radius: 14px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ui-fg);
+}
+
+#toast {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--sb-h) + 18px);
+  transform: translateX(-50%);
+  z-index: 40;
+  padding: 9px 16px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--r-fg) 88%, var(--r-bg));
+  color: var(--r-bg);
+  font-size: 12.5px;
+  font-weight: 500;
+  box-shadow: 0 6px 22px rgb(0 0 0 / .25);
+  pointer-events: none;
+}
+#toast[hidden] { display: none; }
+
+/* --------------------------------------------------- keyboard help card --- */
+
+#shortcuts {
+  position: absolute;
+  inset: 0;
+  z-index: 45;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--r-bg) 80%, transparent);
+  backdrop-filter: blur(4px);
+}
+#shortcuts[hidden] { display: none; }
+#shortcuts .sc-card {
+  max-width: 520px;
+  padding: 24px 28px;
+  border-radius: 16px;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-line);
+  box-shadow: 0 18px 50px rgb(0 0 0 / .2);
+}
+#shortcuts h2 { margin: 0 0 14px; font-size: 16px; }
+#shortcuts dl { display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; margin: 0; font-size: 13px; }
+#shortcuts dt { text-align: right; }
+#shortcuts dd { margin: 0; color: var(--ui-fg-dim); }
+kbd {
+  display: inline-block;
+  min-width: 1.6em;
+  padding: 2px 6px;
+  border: 1px solid var(--ui-line);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: var(--ui-bg-2);
+  font: inherit;
+  font-size: .92em;
+  font-family: ui-monospace, monospace;
+  text-align: center;
+  color: var(--ui-fg);
+}
+
+/* ---------------------------------------------------------- focus rings --- */
+
+:where(button, input, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--ui-accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+@media (max-width: 760px) {
+  #modes button { padding: 6px 9px; font-size: 11.5px; }
+  #doc-title { max-width: 16ch; }
+  #wpmbox { display: none; }
+}
+
+/* ------------------------------------------------------------ skim aids --- */
+/* First/last sentences and key-word runs are inline wrappers around their
+   words *and the spaces between them*, so a highlight paints continuously,
+   wraps line by line like ink (box-decoration-break), and never skips a gap.
+   Every variable falls back to a no-op, so turning a style off costs nothing. */
+
+#doc .sn, #doc .kr {
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  border-radius: var(--hl-radius, .25em);
+}
+#doc .sn.fs {
+  font-weight: var(--r-fs-w, inherit);
+  color: var(--r-fs-c, inherit);
+  text-decoration-line: var(--r-fs-ul, none);
+  background-image: linear-gradient(to bottom, transparent var(--hl-a), color-mix(in srgb, var(--r-fs-hl, transparent) calc(var(--hl-op, .55) * 100%), transparent) var(--hl-a), color-mix(in srgb, var(--r-fs-hl, transparent) calc(var(--hl-op, .55) * 100%), transparent) var(--hl-b), transparent var(--hl-b));
+}
+#doc .sn.ls {
+  font-weight: var(--r-ls-w, inherit);
+  color: var(--r-ls-c, inherit);
+  text-decoration-line: var(--r-ls-ul, none);
+  background-image: linear-gradient(to bottom, transparent var(--hl-a), color-mix(in srgb, var(--r-ls-hl, transparent) calc(var(--hl-op, .55) * 100%), transparent) var(--hl-a), color-mix(in srgb, var(--r-ls-hl, transparent) calc(var(--hl-op, .55) * 100%), transparent) var(--hl-b), transparent var(--hl-b));
+}
+#doc .kr.num {
+  font-weight: var(--r-num-w, inherit);
+  color: var(--r-num-c, inherit);
+  text-decoration-line: var(--r-num-ul, none);
+  background-image: linear-gradient(to bottom, transparent var(--hl-a), color-mix(in srgb, var(--r-num-hl, transparent) calc(var(--hl-op, .55) * 100%), transparent) var(--hl-a), color-mix(in srgb, var(--r-num-hl, transparent) calc(var(--hl-op, .55) * 100%), transparent) var(--hl-b), transparent var(--hl-b));
+}
+#doc .kr.nm {
+  font-weight: var(--r-nm-w, inherit);
+  color: var(--r-nm-c, inherit);
+  text-decoration-line: var(--r-nm-ul, none);
+  background-image: linear-gradient(to bottom, transparent var(--hl-a), color-mix(in srgb, var(--r-nm-hl, transparent) calc(var(--hl-op, .55) * 100%), transparent) var(--hl-a), color-mix(in srgb, var(--r-nm-hl, transparent) calc(var(--hl-op, .55) * 100%), transparent) var(--hl-b), transparent var(--hl-b));
+}
+#doc .sn, #doc .kr { text-decoration-thickness: .08em; text-underline-offset: .2em; }
+
+#doc .w.sw:not(.cur) { opacity: var(--r-sw-op, 1); }
+#doc .w.pe { padding-inline-end: var(--r-pe-gap, 0px); }
+#doc .w.se { padding-inline-end: var(--r-se-gap, 0px); }
+
+/* Thicker letters without changing metrics, and the selection colour. */
+#doc { -webkit-text-stroke: var(--r-stroke, 0px) currentColor; }
+#doc ::selection { background: color-mix(in srgb, var(--r-sel, #93c5fd) 55%, transparent); }
+
+/* Headings. */
+#doc h1.blk { font-size: calc(1.5em * var(--r-hs, 1)); }
+#doc h2.blk { font-size: calc(1.28em * var(--r-hs, 1)); }
+#doc h3.blk { font-size: calc(1.1em * var(--r-hs, 1)); }
+#doc h1.blk, #doc h2.blk, #doc h3.blk {
+  font-weight: var(--r-hw, 700);
+  color: var(--r-hc, inherit);
+  margin-top: calc(var(--r-ps) * var(--r-zoom) * var(--r-hsp, 2));
+  line-height: 1.3;
+}
+
+/* ----------------------------------------------------------------- links --- */
+
+#doc a.lnk {
+  color: var(--r-link, inherit);
+  text-decoration-line: var(--r-link-ul, underline);
+  text-decoration-thickness: .06em;
+  text-underline-offset: .16em;
+  text-decoration-color: color-mix(in srgb, var(--r-link, currentColor) 55%, transparent);
+  cursor: pointer;
+}
+#doc a.lnk:hover { text-decoration-line: underline; text-decoration-thickness: .12em; }
+
+/* --------------------------------------------------------------- figures --- */
+
+#doc figure.fig {
+  margin-inline: 0;
+  text-align: center;
+}
+#doc figure.fig img {
+  display: block;
+  margin-inline: auto;
+  width: min(100%, calc(var(--fig-w, 100%) * var(--r-zoom, 1) * var(--r-fig-scale, 1)));
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+  background: #fff;
+  filter: var(--r-fig-filter, none);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--r-fg) 10%, transparent);
+}
+
+/* ------------------------------------------------------------------ flow --- */
+/* Two layers: one inside #doc (moves with the text: phrase highlight, sweep,
+   line-following guide) and one fixed over the stage (the still band and the
+   fades). Both only use transforms and opacity per frame. */
+
+#doc .flow-layer { position: absolute; inset: 0; z-index: -1; pointer-events: none; }
+#doc .flow-layer[hidden], .flow-fixed[hidden], .flow-fixed [hidden], #doc .flow-layer [hidden] { display: none; }
+#doc .flow-hl {
+  position: absolute; top: 0; left: 0;
+  background: color-mix(in srgb, var(--r-flow, #e11d48) calc(var(--r-flow-hl-op, .22) * 100%), transparent);
+  border-radius: 4px;
+  will-change: transform, width;
+}
+#doc .flow-sweep {
+  position: absolute; top: 0; left: 0; width: 0;
+  background: var(--r-flow, #e11d48);
+  border-radius: 2px;
+  will-change: transform, width;
+}
+#doc .flow-sweep.fill { background: color-mix(in srgb, var(--r-flow, #e11d48) 14%, transparent); border-radius: 3px; }
+#doc .flow-sweep.caret { border-radius: 50%; }
+
+.flow-fixed { position: absolute; inset: 0; z-index: 5; pointer-events: none; overflow: hidden; }
+.flow-band {
+  position: absolute; top: 0; left: 0;
+  will-change: transform;
+}
+.flow-band.fill, .flow-band.fill-rules { background: color-mix(in srgb, var(--r-flow, #e11d48) calc(var(--r-flow-band-op, .12) * 100%), transparent); border-radius: 4px; }
+.flow-band.rules, .flow-band.fill-rules {
+  border-top: 1.5px solid color-mix(in srgb, var(--r-flow, #e11d48) calc(var(--r-flow-band-op, .12) * 300%), transparent);
+  border-bottom: 1.5px solid color-mix(in srgb, var(--r-flow, #e11d48) calc(var(--r-flow-band-op, .12) * 300%), transparent);
+}
+.flow-band.outline { border: 1.5px solid color-mix(in srgb, var(--r-flow, #e11d48) calc(var(--r-flow-band-op, .12) * 300%), transparent); border-radius: 6px; }
+.flow-fade { position: absolute; left: 0; right: 0; }
+#app:not([data-mode="flow"]) .flow-fixed { display: none; }
+
+/* -------------------------------------------------------- contents panel --- */
+/* Floats over the left of the page (the text column never moves), with its
+   own settings pinned at the bottom. */
+
+#outline {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: min(var(--outline-w, 300px), 92vw);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  background: var(--ui-bg);
+  color: var(--ui-fg);
+  border-right: 1px solid var(--ui-line);
+  box-shadow: 4px 0 18px rgb(0 0 0 / .08);
+  font: 13px/1.35 system-ui, -apple-system, sans-serif;
+}
+#outline[hidden] { display: none; }
+#outline .ol-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 4px; }
+#outline .ol-title { font-weight: 700; font-size: 14px; }
+#outline .ol-x {
+  appearance: none; border: 0; background: transparent; color: var(--ui-fg-dim);
+  font-size: 14px; cursor: pointer; padding: 4px 6px; border-radius: 6px;
+}
+#outline .ol-x:hover { background: var(--ui-bg-2); color: var(--ui-fg); }
+#outline .ol-summary {
+  padding: 2px 14px 10px; font-size: 12px; color: var(--ui-fg-dim);
+  border-bottom: 1px solid var(--ui-line);
+}
+#outline .ol-list { list-style: none; margin: 0; padding: 6px 0; overflow-y: auto; flex: 1 1 auto; min-height: 0; }
+#outline .ol-item { padding: 7px 14px 8px; cursor: pointer; border-left: 3px solid transparent; }
+#outline .ol-item:hover { background: var(--ui-bg-2); }
+#outline .ol-item:focus-visible { outline: 2px solid var(--r-flow, #e11d48); outline-offset: -2px; }
+#outline .ol-item.lv2 { padding-left: 26px; }
+#outline .ol-item.lv3 { padding-left: 38px; font-size: 12.5px; }
+#outline .ol-item.is-cur { border-left-color: var(--r-flow, #e11d48); background: color-mix(in srgb, var(--r-flow, #e11d48) 7%, transparent); }
+#outline .ol-item.is-done .ol-name { color: var(--ui-fg-dim); }
+#outline .ol-row { display: flex; gap: 8px; align-items: baseline; justify-content: space-between; }
+#outline .ol-name { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+#outline .lv1 .ol-name { font-weight: 700; }
+#outline .lv3 .ol-name { font-weight: 500; }
+#outline .ol-meta { display: flex; gap: 6px; flex: 0 0 auto; font-size: 11.5px; color: var(--ui-fg-dim); font-variant-numeric: tabular-nums; }
+#outline .ol-len { color: var(--ui-fg); font-weight: 600; }
+#outline .ol-until { display: block; margin-top: 2px; font-size: 11.5px; color: var(--ui-fg-dim); }
+#outline .is-cur .ol-until { color: var(--r-flow, #e11d48); font-weight: 600; }
+#outline .ol-bar { height: 3px; margin-top: 5px; border-radius: 2px; background: var(--ui-bg-2); overflow: hidden; }
+#outline .ol-bar i { display: block; height: 100%; background: var(--r-flow, #e11d48); transform-origin: left; transform: scaleX(0); }
+#outline .is-done .ol-bar i { opacity: .45; }
+#outline .ol-empty { padding: 12px 14px; color: var(--ui-fg-dim); }
+
+#outline .ol-settings { border-top: 1px solid var(--ui-line); flex: 0 0 auto; max-height: 48%; overflow-y: auto; }
+#outline .ol-settings > summary { padding: 10px 14px; cursor: pointer; font-weight: 600; font-size: 12.5px; }
+#outline .ol-set-body { padding: 0 14px 12px; display: grid; gap: 8px; }
+#outline .ol-set-row { display: grid; gap: 4px; font-size: 12.5px; }
+#outline .ol-set-row.is-check { grid-template-columns: auto 1fr; align-items: center; gap: 8px; }
+#outline .ol-set-row select { font: inherit; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--ui-line); background: var(--ui-bg); color: var(--ui-fg); }
+#outline .ol-range { display: flex; gap: 8px; align-items: center; }
+#outline .ol-range input { flex: 1; }
+#outline .ol-range output { min-width: 3ch; text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ---------------------------------------------------------------- search --- */
+
+#searchbar {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: min(460px, calc(100% - 24px));
+  padding: 5px 6px 5px 10px;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-line);
+  border-radius: 10px;
+  box-shadow: 0 6px 22px rgb(0 0 0 / .14);
+  font: 13px system-ui, -apple-system, sans-serif;
+}
+#searchbar[hidden] { display: none; }
+#searchbar input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--ui-fg);
+  font: inherit;
+  font-size: 14px;
+  padding: 5px 2px;
+}
+#searchbar .sb-count { color: var(--ui-fg-dim); font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+#searchbar button {
+  appearance: none; border: 0; background: transparent; color: var(--ui-fg-dim);
+  font: inherit; cursor: pointer; padding: 4px 7px; border-radius: 6px;
+}
+#searchbar button:hover { background: var(--ui-bg-2); color: var(--ui-fg); }
+
+#doc .w.sr-hit { background: color-mix(in srgb, #facc15 45%, transparent); border-radius: 2px; }
+#doc .w.sr-cur { background: #fb923c; color: #111; box-shadow: 0 0 0 .12em #fb923c; }

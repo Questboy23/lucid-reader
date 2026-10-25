@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="light dark">
+<title>Lucid Reader — settings</title>
+<link rel="stylesheet" href="../fonts/fonts.css">
+<style>
+  :root {
+    --bg: #14161a; --card: #1b1e24; --line: #2b3038;
+    --fg: #e8e6e1; --dim: #9aa0a8; --accent: #e11d48;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg: #f6f0e2; --card: #fffdf7; --line: #e2dccb; --fg: #34302a; --dim: #78716a; }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; padding: 48px 20px;
+    background: var(--bg); color: var(--fg);
+    font-family: 'Inter', system-ui, sans-serif; font-size: 14px; line-height: 1.55;
+  }
+  main { max-width: 620px; margin: 0 auto; }
+  h1 { font-family: 'Literata', Georgia, serif; font-size: 27px; margin: 0 0 4px; letter-spacing: -.01em; }
+  .lede { color: var(--dim); margin: 0 0 30px; }
+  section {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 14px; padding: 6px 20px; margin-bottom: 16px;
+  }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .07em; color: var(--dim);
+       margin: 18px 0 10px; font-weight: 600; }
+  .row { display: flex; align-items: center; gap: 16px; padding: 13px 0; border-top: 1px solid var(--line); }
+  .row:first-of-type { border-top: 0; }
+  .row .t { flex: 1; min-width: 0; }
+  .row .t b { display: block; font-weight: 600; }
+  .row .t span { display: block; color: var(--dim); font-size: 12.5px; }
+  .sw { flex: 0 0 auto; width: 44px; height: 25px; border: 0; border-radius: 999px;
+        background: var(--line); position: relative; cursor: pointer; transition: background .16s; }
+  .sw::after { content: ""; position: absolute; top: 3px; left: 3px; width: 19px; height: 19px;
+               border-radius: 50%; background: #fff; transition: transform .16s; }
+  .sw[aria-checked="true"] { background: var(--accent); }
+  .sw[aria-checked="true"]::after { transform: translateX(19px); }
+  select, .btn {
+    font: inherit; color: var(--fg); background: var(--bg);
+    border: 1px solid var(--line); border-radius: 9px; padding: 7px 11px; cursor: pointer;
+  }
+  .btn.danger { color: #fca5a5; }
+  .btn:hover, select:hover { border-color: var(--dim); }
+  kbd { display: inline-block; min-width: 1.5em; padding: 1px 6px; border: 1px solid var(--line);
+        border-bottom-width: 2px; border-radius: 5px; background: var(--bg);
+        font-family: ui-monospace, monospace; font-size: 12px; text-align: center; }
+  dl { display: grid; grid-template-columns: auto 1fr; gap: 7px 16px; margin: 4px 0 18px; }
+  dt { text-align: right; }
+  dd { margin: 0; color: var(--dim); }
+  .note { color: var(--dim); font-size: 12.5px; margin: 0 0 18px; }
+  a { color: var(--accent); }
+  #saved { color: var(--dim); font-size: 12.5px; height: 18px; }
+  .welcome { border-color: var(--accent); }
+  .welcome h2 { color: var(--accent); }
+  ol { margin: 4px 0 18px; padding-left: 22px; color: var(--dim); }
+  ol li { margin-bottom: 5px; }
+  ol b { color: var(--fg); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Lucid Reader</h1>
+  <p class="lede">A reading view for PDFs. Most of the controls live in the reader itself —
+    open any PDF and press <kbd>S</kbd>.</p>
+
+  <section id="welcome-card" class="welcome" hidden>
+    <h2>You're set up</h2>
+    <ol>
+      <li>Open any PDF link in Chrome — it lands in Lucid Reader.</li>
+      <li>Press <b>S</b> for the reading settings: fonts, spacing, colours, bionic, pacing.</li>
+      <li>Switch modes at the top: <b>Normal</b>, <b>Read-along</b>, <b>Auto-scroll</b>, <b>RSVP</b>,
+        or <b>Original PDF</b> for the untouched pages.</li>
+      <li>For PDFs on your own computer, turn on <b>Allow access to file URLs</b> on this
+        extension's details page in <a id="ext-link" href="#">chrome://extensions</a>.</li>
+    </ol>
+    <p class="note">You can also drag a PDF straight onto the reader window.</p>
+  </section>
+
+  <section>
+    <h2>Opening PDFs</h2>
+    <div class="row">
+      <div class="t">
+        <b>Open PDFs in Lucid Reader automatically</b>
+        <span>Off: PDFs stay in Chrome's viewer, and you switch over with the toolbar button
+          or <kbd>Alt</kbd>+<kbd>R</kbd>.</span>
+      </div>
+      <button class="sw" id="takeover" role="switch" aria-checked="true" aria-label="Open PDFs automatically"></button>
+    </div>
+    <div class="row">
+      <div class="t">
+        <b>Mode on open</b>
+        <span>Which reading mode a freshly opened PDF starts in.</span>
+      </div>
+      <select id="defaultMode" aria-label="Mode on open">
+        <option value="normal">Normal</option>
+        <option value="readalong">Read-along</option>
+        <option value="autoscroll">Auto-scroll</option>
+        <option value="rsvp">RSVP</option>
+      </select>
+    </div>
+    <div class="row">
+      <div class="t">
+        <b>Remember where I stopped</b>
+        <span>Reopening a PDF returns you to the word you were on.</span>
+      </div>
+      <button class="sw" id="rememberPosition" role="switch" aria-checked="true" aria-label="Remember reading position"></button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Keyboard</h2>
+    <dl>
+      <dt><kbd>Space</kbd></dt><dd>Play / pause</dd>
+      <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>Previous / next word — hold Shift for ten</dd>
+      <dt><kbd>↑</kbd> <kbd>↓</kbd></dt><dd>Previous / next line</dd>
+      <dt><kbd>J</kbd> <kbd>K</kbd></dt><dd>Slower / faster</dd>
+      <dt><kbd>1</kbd>–<kbd>5</kbd></dt><dd>Normal · Read-along · Auto-scroll · RSVP · Original PDF</dd>
+      <dt><kbd>S</kbd></dt><dd>Reading settings</dd>
+      <dt><kbd>B</kbd> <kbd>D</kbd> <kbd>P</kbd></dt><dd>Bionic · Dim · Paginated</dd>
+      <dt><kbd>?</kbd></dt><dd>Show this list in the reader</dd>
+    </dl>
+    <p class="note">The <kbd>Alt</kbd>+<kbd>R</kbd> shortcut that switches a tab between Chrome's
+      viewer and Lucid Reader can be changed at
+      <a id="sc-link" href="#">chrome://extensions/shortcuts</a>.</p>
+  </section>
+
+  <section>
+    <h2>Everything else</h2>
+    <div class="row">
+      <div class="t">
+        <b>Reset all reading settings</b>
+        <span>Typography, colours, bionic, pacing, RSVP — back to defaults.</span>
+      </div>
+      <button class="btn danger" id="reset">Reset</button>
+    </div>
+    <div class="row">
+      <div class="t">
+        <b>Open the reader</b>
+        <span>Without a PDF, so you can drop one in.</span>
+      </div>
+      <button class="btn" id="open">Open</button>
+    </div>
+  </section>
+
+  <p id="saved"></p>
+</main>
+<script type="module" src="options.js"></script>
+</body>
+</html>
