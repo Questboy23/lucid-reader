@@ -7,7 +7,7 @@
  */
 
 import * as pdfjs from '../vendor/pdfjs/pdf.min.mjs';
-import { DEFAULTS, SECTION_KEYS } from './lib/schema.js';
+import { DEFAULTS, SECTION_KEYS, BY_KEY } from './lib/schema.js';
 import * as store from './lib/settings.js';
 import { renderInto, finishIndex, redecorate, FLAG } from './lib/markup.js';
 import { extractDocument, addFigures } from './lib/extract.js';
@@ -194,6 +194,12 @@ async function bytesFor(source) {
     if (!RUNTIME) throw e;
     const res = await RUNTIME.sendMessage({ type: 'fetch-pdf', url: source.url })
       .catch(() => null);
+    if (res?.ok && res.b64) {
+      const bin = atob(res.b64);
+      const out = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+      return out;
+    }
     if (res?.ok) return new Uint8Array(res.data);
     if (source.url.startsWith('file:')) {
       throw new Error(
@@ -291,7 +297,17 @@ async function open(source) {
     if (!cached) startFigurePass(pdf, doc, key);
   } catch (e) {
     console.error('[lucid] open failed', e);
-    showError('Could not open this PDF', String(e?.message || e));
+    // Some sites (download mirrors, expiring links) refuse a second download.
+    // Hand the link back to Chrome so the PDF still opens or downloads.
+    const msg = String(e?.message || e);
+    if (source.kind === 'url' && /^https?:/.test(source.url) && !state.ready
+        && /fetch|HTTP|network|download/i.test(msg)) {
+      showLoading('Lucid could not load this one. Opening it normally…', 1);
+      try { await RUNTIME?.sendMessage({ type: 'bypass-once' }); } catch { /* still try */ }
+      location.replace(source.url);
+      return;
+    }
+    showError('Could not open this PDF', msg);
   }
 }
 
@@ -303,13 +319,28 @@ async function open(source) {
  * keeping the reader on the same page and word. While a pacer is playing the
  * swap waits for the next pause so the text never jumps under the reader.
  */
+let lastInput = 0;
+for (const type of ['pointerdown', 'keydown', 'wheel', 'input', 'touchstart']) {
+  window.addEventListener(type, () => { lastInput = performance.now(); }, { capture: true, passive: true });
+}
+
 function startFigurePass(pdf, doc, key) {
   if (state.settings.showFigures === false) { saveDoc(key, doc, () => null); return; }
   const ctrl = new AbortController();
   figureJob = ctrl;
-  const idle = () => new Promise(r => (window.requestIdleCallback
-    ? requestIdleCallback(() => r(), { timeout: 120 })
-    : setTimeout(r, 16)));
+  // Each page scan blocks the tab for up to a few hundred ms, and a book has
+  // hundreds. The scan waits while the settings panel is open, while a paced
+  // mode is playing, and for 1.5 s after any click, key, scroll or slider move,
+  // so changes and scrolling never queue behind it.
+  const busy = () => performance.now() - lastInput < 1500
+    || el.app.classList.contains('panel-open')
+    || !!pacer?.playing;
+  const idle = async () => {
+    while (busy() && !ctrl.signal.aborted) await new Promise(r => setTimeout(r, 300));
+    await new Promise(r => (window.requestIdleCallback
+      ? requestIdleCallback(() => r(), { timeout: 120 })
+      : setTimeout(r, 16)));
+  };
   (async () => {
     const t0 = performance.now();
     const next = await addFigures(pdf, doc, figureCapture, {
@@ -483,6 +514,7 @@ function applySettings(changed) {
   if (s.outlineOpen) outline?.onSettings(changed);
   el.app.classList.toggle('rails', s.railsOn);
   el.app.classList.toggle('paginated', s.paginated);
+  el.app.classList.toggle('paper', !!s.pageLook && !s.paginated);
   el.app.classList.toggle('pacer-nobg', !s.pacerBackground);
   el.app.classList.toggle('pacer-underline', s.pacerUnderline);
   el.app.classList.toggle('pacer-tint', s.pacerTintText);
@@ -497,7 +529,7 @@ function applySettings(changed) {
     'bionicOn', 'bionicPercent', 'bionicMinLen',
     'firstLetterOn', 'firstLetterScope',
   ].includes(k));
-  const needsRerender = keys.some(k => ['showPdfPageMarks', 'showFigures', 'compress', 'phraseMax'].includes(k));
+  const needsRerender = keys.some(k => ['showPdfPageMarks', 'pageLook', 'showFigures', 'compress', 'phraseMax'].includes(k));
   if (keys.some(k => k.startsWith('flow') || k === 'bg' || k === 'textContrast')) flow?.refresh();
 
   if (needsRerender) {
@@ -505,8 +537,35 @@ function applySettings(changed) {
     render().then(() => { seekTo(at); });
     return;
   }
-  if (needsRedecorate) redecorate(state.index, s);
+  if (needsRedecorate) { redecorateProgressive(s); return; }
   relayout();
+}
+
+/**
+ * Bionic and first-letter styles rewrite every word. The words on screen are
+ * rewritten first, in the same frame; the rest of the book follows in
+ * background slices, so the change shows at once instead of after every word.
+ */
+let redecorateJob = 0;
+function redecorateProgressive(s) {
+  const idx = state.index;
+  const job = ++redecorateJob;
+  const n = idx.count;
+  const centre = state.mode === 'normal' || state.mode === 'pdf' ? wordAtViewportCentre() : state.word;
+  const lo = Math.max(0, centre - 1500), hi = Math.min(n, centre + 1500);
+  redecorate(idx, s, lo, hi);
+  relayout();
+  const rest = [];
+  for (let a = hi; a < n; a += 4000) rest.push([a, Math.min(n, a + 4000)]);
+  for (let z = lo; z > 0; z -= 4000) rest.push([Math.max(0, z - 4000), z]);
+  const step = () => {
+    if (job !== redecorateJob || state.index !== idx) return;
+    const r = rest.shift();
+    if (!r) { relayout(); return; }
+    redecorate(idx, state.settings, r[0], r[1]);
+    setTimeout(step, 0);
+  };
+  setTimeout(step, 0);
 }
 
 let outlineTimer = 0;
@@ -768,6 +827,13 @@ function positionRails() {
   const gap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--r-rail-gap')) || 16;
   el.railL.style.left = `${Math.max(0, d.left - m.left - gap)}px`;
   el.railR.style.left = `${Math.min(m.width, d.right - m.left + gap)}px`;
+  const paper = document.getElementById('paper');
+  if (paper) {
+    paper.style.left = `${d.left - m.left}px`;
+    paper.style.top = `${d.top - m.top}px`;
+    paper.style.width = `${d.width}px`;
+    paper.style.height = `${d.height}px`;
+  }
 }
 
 /** Width of one "0" in the current reading font, for ch <-> px conversion. */
@@ -800,7 +866,7 @@ function initRailDrag() {
       const dx = (e.clientX - drag.x) * (drag.edge === 'l' ? -1 : 1);
       // The column is centred, so a drag widens it on both sides.
       const next = Math.round(drag.startCh + (dx * 2) / drag.ch);
-      const clamped = Math.max(30, Math.min(120, next));
+      const clamped = Math.max(BY_KEY.columnWidth.min, Math.min(BY_KEY.columnWidth.max, next));
       if (clamped !== state.settings.columnWidth) {
         state.settings = { ...state.settings, columnWidth: clamped };
         store.applyCssVars(document.documentElement, state.settings);
@@ -1091,10 +1157,67 @@ function wireChrome() {
   $('btn-search').addEventListener('click', () => (search?.isOpen() ? search.close() : search?.open()));
   $('btn-outline').addEventListener('click', () => store.save({ outlineOpen: !state.settings.outlineOpen }));
 
-  $('btn-back').addEventListener('click', () => {
-    if (state.source?.kind === 'url') location.href = state.source.url;
-    else toast('This file was opened from your computer.');
+  if (!document.getElementById('paper')) {
+    const paper = document.createElement('div');
+    paper.id = 'paper';
+    paper.setAttribute('aria-hidden', 'true');
+    el.measure.prepend(paper);
+  }
+
+  // Leave the reader for Chrome's own viewer. The service worker lets this
+  // one navigation through, otherwise the takeover rule would bounce it back.
+  async function openOriginal() {
+    if (state.source?.kind !== 'url') { toast('This file was opened from your computer.'); return; }
+    try { await RUNTIME?.sendMessage({ type: 'bypass-once' }); } catch { /* still try */ }
+    location.href = state.source.url;
+  }
+  $('btn-back').addEventListener('click', openOriginal);
+
+  $('btn-download').addEventListener('click', async () => {
+    if (!state.pdf) { toast('Nothing to download yet.'); return; }
+    const data = await state.pdf.getData();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([data], { type: 'application/pdf' }));
+    let name = (state.source?.name || 'document').replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'document';
+    if (!/\.pdf$/i.test(name)) name += '.pdf';
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 60000);
   });
+
+  $('btn-power').addEventListener('click', async () => {
+    await store.save({ takeover: false });
+    await store.flush().catch(() => {}); // the service worker reads it from storage
+    toast('Lucid is off. PDFs open and download normally. Right-click the toolbar icon to turn it back on.', 4000);
+    setTimeout(openOriginal, 1200);
+  });
+
+  // Trackpad pinch arrives as a wheel event with ctrlKey set.
+  // Pinch = zoom. Shift + pinch = page width. Option + pinch = line spacing.
+  let pinchSave = 0;
+  el.scroller.addEventListener('wheel', e => {
+    if (!e.ctrlKey) return;
+    e.preventDefault();
+    const s = state.settings;
+    const f = Math.exp(-(e.deltaY || e.deltaX) * 0.01);
+    const frac = el.scroller.scrollTop / Math.max(1, el.scroller.scrollHeight);
+    let next;
+    if (e.shiftKey) next = { columnWidth: Math.max(BY_KEY.columnWidth.min, Math.min(BY_KEY.columnWidth.max, Math.round(s.columnWidth * f))) };
+    else if (e.altKey) next = { lineHeight: Math.max(BY_KEY.lineHeight.min, Math.min(BY_KEY.lineHeight.max, Math.round(s.lineHeight * f * 100) / 100)) };
+    else next = { zoom: Math.max(BY_KEY.zoom.min, Math.min(BY_KEY.zoom.max, Math.round(s.zoom * f * 100) / 100)) };
+    state.settings = { ...s, ...next };
+    store.applyCssVars(document.documentElement, state.settings);
+    el.scroller.scrollTop = frac * el.scroller.scrollHeight;
+    positionRails();
+    clearTimeout(pinchSave);
+    pinchSave = setTimeout(() => {
+      const { zoom, columnWidth, lineHeight } = state.settings;
+      store.save({ zoom, columnWidth, lineHeight });
+      panel?.refresh();
+    }, 250);
+  }, { passive: false });
 
   el.wpm.addEventListener('change', () => {
     const v = parseInt(el.wpm.value, 10);
@@ -1137,6 +1260,9 @@ function wireChrome() {
   });
 
   el.scroller.addEventListener('scroll', () => {
+    // Flow scrolls the page itself; the dim zone is pinned to the screen, so
+    // it needs every scroll position, not just every word.
+    if (state.mode === 'flow') overlay?.update(overlayState());
     if (state.mode === 'normal' || state.mode === 'pdf') {
       overlay?.update(overlayState());
       updateProgress();
@@ -1204,6 +1330,12 @@ async function boot() {
     scrim: el.scrim,
     getSettings: () => state.settings,
     onApply: patch => store.save(patch),
+    // A saved setup also switches the reading mode it was saved with.
+    onUseSetup: async patch => {
+      await store.save(patch);
+      if (patch.defaultMode && patch.defaultMode !== state.mode) setMode(patch.defaultMode);
+    },
+    getMode: () => state.mode,
     onPreview: () => {},
     onReset: keys => store.reset(keys),
   });

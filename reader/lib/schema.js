@@ -29,20 +29,20 @@ export const SECTIONS = [
   { id: 'color',      label: 'Colors & contrast',                  icon: 'palette',    group: 1 },
   { id: 'headings',   label: 'Headings & links',                   icon: 'type',       group: 3 },
   { id: 'skim',       label: 'Skim: sentences, numbers, names',    icon: 'highlighter',group: 1 },
-  { id: 'bionic',     label: 'Bionic reading',                     icon: 'bolt',       group: 3 },
-  { id: 'stripes',    label: 'Line stripes',                       icon: 'highlighter',group: 3 },
-  { id: 'focus',      label: 'Focus & dim',                        icon: 'focus',      group: 3 },
+  { id: 'bionic',     label: 'Bionic: bold the start of each word',                     icon: 'bolt',       group: 3 },
+  { id: 'stripes',    label: 'Stripes: tint every few lines',                       icon: 'highlighter',group: 3 },
+  { id: 'focus',      label: 'Focus: dim all but the lines you read',                        icon: 'focus',      group: 3 },
   { id: 'speed',      label: 'Speed & time left (all paced modes)', icon: 'sliders',   group: 1 },
-  { id: 'pacer',      label: 'Read-along (mode 2)',                icon: 'sparkles',   group: 2 },
-  { id: 'autoscroll', label: 'Auto-scroll (mode 3)',               icon: 'sparkles',   group: 2 },
-  { id: 'bar',        label: 'Descending bar (modes 2 & 3)',       icon: 'layout',     group: 2 },
-  { id: 'flow',       label: 'Flow (mode 4)',                      icon: 'sparkles',   group: 2 },
-  { id: 'rsvp',       label: 'RSVP (mode 5)',                      icon: 'layout',     group: 2 },
-  { id: 'rsvpPause',  label: 'Pauses at commas, periods… (modes 2, 4, 5)', icon: 'pause', group: 2 },
+  { id: 'pacer',      label: 'Read-along: lights up each word at your pace (2)',                icon: 'sparkles',   group: 2 },
+  { id: 'autoscroll', label: 'Auto-scroll: the page scrolls at your pace (3)',               icon: 'sparkles',   group: 2 },
+  { id: 'bar',        label: 'Guide bar that moves down the page (2 & 3)',       icon: 'layout',     group: 2 },
+  { id: 'flow',       label: 'Flow: text glides up through a fixed band (4)',                      icon: 'sparkles',   group: 2 },
+  { id: 'rsvp',       label: 'RSVP: one word at a time in a box (5)',                      icon: 'layout',     group: 2 },
+  { id: 'rsvpPause',  label: 'Pauses at commas and periods (2, 4, 5)', icon: 'pause', group: 2 },
   { id: 'outline',    label: 'Contents panel',                     icon: 'columns',    group: 3 },
-  { id: 'pages',      label: 'Pages, figures & tables',            icon: 'layout',     group: 3 },
-  { id: 'rails',      label: 'Side rails',                         icon: 'columns',    group: 3 },
-  { id: 'behavior',   label: 'Behavior',                           icon: 'sliders',    group: 3 },
+  { id: 'pages',      label: 'Pages, figures and tables',            icon: 'layout',     group: 3 },
+  { id: 'rails',      label: 'Side rails: lines at the page edges',                         icon: 'columns',    group: 3 },
+  { id: 'behavior',   label: 'On/off and behavior',                           icon: 'sliders',    group: 3 },
 ];
 
 /* ---------------------------------------------------------------- fonts --- */
@@ -128,6 +128,7 @@ const frac = v => String(Math.round((v / 100) * 1000) / 1000);
 /** How a highlighted thing (first sentence, numbers…) is drawn. */
 const STYLE_OPTIONS = [
   { value: 'off', label: 'Off' },
+  { value: 'bright', label: 'Brighter only (no bold)' },
   { value: 'bold', label: 'Bold' },
   { value: 'highlight', label: 'Highlight' },
   { value: 'bold-highlight', label: 'Bold + highlight' },
@@ -149,12 +150,12 @@ export function contrastFg(fg, bg, pct) {
 }
 
 /** Per-style CSS variables for one highlighted thing; prefix e.g. 'fs'. */
-function styleVars(prefix, style, color, weight) {
+function styleVars(prefix, style, color, weight, bright) {
   const st = style || 'off';
   return {
     [`--r-${prefix}-w`]: /bold/.test(st) ? String(weight) : 'inherit',
     [`--r-${prefix}-hl`]: /highlight/.test(st) ? color : 'transparent',
-    [`--r-${prefix}-c`]: /color/.test(st) ? color : 'inherit',
+    [`--r-${prefix}-c`]: /color/.test(st) ? color : (bright && st !== 'off' ? bright : 'inherit'),
     [`--r-${prefix}-ul`]: st === 'underline' ? 'underline' : 'none',
   };
 }
@@ -162,12 +163,18 @@ function styleVars(prefix, style, color, weight) {
 /** Variables derived from several settings at once. */
 function derivedVars(s) {
   const bold = Math.min(900, (s.fontWeight ?? 400) + 250);
+  // First/last sentences pushed toward pure white (dark themes) or pure black (light themes).
+  const pct = s.sentenceBrightness ?? 0;
+  const bright = pct > 0 ? contrastFg(s.fg, s.bg, pct) : null;
   const shape = { full: ['0%', '100%'], marker: ['30%', '96%'], band: ['72%', '96%'] }[s.hlShape] ?? ['30%', '96%'];
   return {
-    ...styleVars('fs', s.firstSentence, s.firstSentenceColor, s.firstSentenceWeight),
-    ...styleVars('ls', s.lastSentence, s.lastSentenceColor, s.lastSentenceWeight),
+    ...styleVars('fs', s.firstSentence, s.firstSentenceColor, s.firstSentenceWeight, bright),
+    ...styleVars('ls', s.lastSentence, s.lastSentenceColor, s.lastSentenceWeight, bright),
     ...styleVars('num', s.numberStyle, s.numberColor, bold),
     ...styleVars('nm', s.nameStyle, s.nameColor, bold),
+    // Filler words fade in the middle of a paragraph, but never inside an emphasised first/last sentence.
+    '--r-fs-sw': s.firstSentence && s.firstSentence !== 'off' ? '1' : 'var(--r-sw-op, 1)',
+    '--r-ls-sw': s.lastSentence && s.lastSentence !== 'off' ? '1' : 'var(--r-sw-op, 1)',
     '--hl-a': shape[0],
     '--hl-b': shape[1],
   };
@@ -181,27 +188,39 @@ export const SETTINGS = [
     def: "'Literata', Georgia, serif", options: FONT_OPTIONS, cssVar: '--r-font' },
 
   { key: 'zoom', section: 'type', label: 'Zoom', type: 'range', unit: 'x',
-    def: 1, min: 0.6, max: 2.5, step: 0.05, cssVar: '--r-zoom', toCss: num,
-    hint: 'Scales text and spacing together.' },
+    def: 1, min: 0.3, max: 5, step: 0.05, cssVar: '--r-zoom', toCss: num,
+    hint: 'Scales text, spacing and figures together. Pinch the trackpad to zoom. Shift + pinch changes the width, Option + pinch changes line spacing.' },
 
   { key: 'fontSize', section: 'type', label: 'Font size', type: 'range', unit: 'px',
-    def: 19, min: 11, max: 44, step: 1, cssVar: '--r-fs', toCss: px },
+    def: 19, min: 6, max: 96, step: 0.5, cssVar: '--r-fs', toCss: px,
+    hint: 'Down to 6px for dense scanning. Smaller print puts more letters inside one glance, until the letters get too small to resolve.' },
 
   { key: 'lineHeight', section: 'type', label: 'Line height', type: 'range',
-    def: 1.65, min: 1, max: 2.6, step: 0.05, cssVar: '--r-lh', toCss: num },
+    def: 1.65, min: 0.9, max: 3.2, step: 0.05, cssVar: '--r-lh', toCss: num },
 
   { key: 'letterSpacing', section: 'type', label: 'Letter spacing', type: 'range', unit: 'px',
-    def: 0, min: -1, max: 4, step: 0.1, cssVar: '--r-ls', toCss: px },
+    def: 0, min: -2, max: 8, step: 0.1, cssVar: '--r-ls', toCss: px },
 
   { key: 'wordSpacing', section: 'type', label: 'Word spacing', type: 'range', unit: 'px',
-    def: 0, min: 0, max: 16, step: 0.5, cssVar: '--r-ws', toCss: px },
+    def: 0, min: -4, max: 40, step: 0.5, cssVar: '--r-ws', toCss: px },
 
   { key: 'paragraphSpacing', section: 'type', label: 'Paragraph spacing', type: 'range', unit: 'px',
-    def: 14, min: 0, max: 56, step: 1, cssVar: '--r-ps', toCss: px },
+    def: 14, min: 0, max: 120, step: 1, cssVar: '--r-ps', toCss: px },
 
   { key: 'columnWidth', section: 'type', label: 'Column width', type: 'range', unit: 'ch',
-    def: 68, min: 30, max: 120, step: 1, cssVar: '--r-cw', toCss: v => `${v}ch`,
-    hint: 'You can also drag the edges of the text column.' },
+    def: 68, min: 15, max: 200, step: 1, cssVar: '--r-cw', toCss: v => `${v}ch`,
+    hint: 'How many characters fit on a line. You can also drag the edges of the text column.' },
+
+  { key: 'columnHeight', section: 'type', label: 'Column height', type: 'range', unit: '% of window',
+    def: 100, min: 30, max: 100, step: 1, cssVar: '--r-chh', toCss: pct,
+    hint: 'Height of the reading window, centered. Shorter keeps your eyes in a smaller area.' },
+
+  { key: 'columnPosition', section: 'type', label: 'Column position', type: 'select', def: 'center',
+    options: [
+      { value: 'left', label: 'Left' },
+      { value: 'center', label: 'Center' },
+      { value: 'right', label: 'Right' },
+    ], cssVar: '--r-cpos', toCss: v => ({ left: 'flex-start', right: 'flex-end' }[v] ?? 'center') },
 
   { key: 'fontWeight', section: 'type', label: 'Font weight (boldness)', type: 'range',
     def: 400, min: 200, max: 900, step: 10, cssVar: '--r-fw', toCss: num },
@@ -226,8 +245,8 @@ export const SETTINGS = [
     cssVar: '--r-bg' },
   { key: 'fg', section: 'color', label: 'Text color', type: 'color', def: '#3a3229',
     cssVar: '--r-fg', toCss: (v, s) => contrastFg(v, s.bg, s.textContrast) },
-  { key: 'pagePadding', section: 'color', label: 'Page padding', type: 'range', unit: 'px',
-    def: 48, min: 0, max: 160, step: 4, cssVar: '--r-pad', toCss: px },
+  { key: 'pagePadding', section: 'color', label: 'Space around the text', type: 'range', unit: 'px',
+    def: 48, min: 0, max: 320, step: 4, cssVar: '--r-pad', toCss: px },
   { key: 'textContrast', section: 'color', label: 'Text contrast', type: 'range', unit: '%',
     def: 0, min: -60, max: 100, step: 5,
     hint: 'Pushes the text color toward pure black or white (negative softens it).' },
@@ -252,13 +271,13 @@ export const SETTINGS = [
     cssVar: '--r-link-ul', toCss: v => (v ? 'underline' : 'none') },
 
   /* ================================================================ BIONIC */
-  { key: 'bionicOn', section: 'bionic', label: 'Enable bionic', type: 'bool', def: false,
+  { key: 'bionicOn', section: 'bionic', label: 'Bold the start of each word', type: 'bool', def: false,
     strong: true, rerender: true },
   { key: 'bionicPercent', section: 'bionic', label: 'Bolded letters', type: 'range', unit: '%',
     def: 40, min: 5, max: 90, step: 1, rerender: true, showIf: s => s.bionicOn },
   { key: 'bionicMinLen', section: 'bionic', label: 'Skip words shorter than', type: 'range', unit: 'letters',
     def: 4, min: 1, max: 8, step: 1, rerender: true, showIf: s => s.bionicOn },
-  { key: 'bionicRemainderOpacity', section: 'bionic', label: 'Remainder opacity', type: 'range', unit: '%',
+  { key: 'bionicRemainderOpacity', section: 'bionic', label: 'Strength of the rest of each word', type: 'range', unit: '%',
     def: 75, min: 20, max: 100, step: 1, cssVar: '--r-bi-rest', toCss: frac,
     showIf: s => s.bionicOn },
   { key: 'bionicWeight', section: 'bionic', label: 'Bold weight', type: 'range',
@@ -275,13 +294,20 @@ export const SETTINGS = [
   { key: 'firstSentenceColor', section: 'skim', label: 'First-sentence color', type: 'color', def: '#fde047',
     showIf: s => /highlight|color/.test(s.firstSentence) },
   { key: 'firstSentenceWeight', section: 'skim', label: 'First-sentence boldness', type: 'range',
-    def: 650, min: 500, max: 900, step: 50, showIf: s => /bold/.test(s.firstSentence) },
-  { key: 'lastSentence', section: 'skim', label: 'Last sentence of each paragraph', type: 'select', def: 'off',
+    def: 800, min: 500, max: 900, step: 50, showIf: s => /bold/.test(s.firstSentence) },
+  { key: 'lastSentence', section: 'skim', label: 'Last sentence of each paragraph', type: 'select', def: 'bold',
     options: STYLE_OPTIONS, strong: true, hint: 'Often the conclusion or the bridge to the next paragraph.' },
   { key: 'lastSentenceColor', section: 'skim', label: 'Last-sentence color', type: 'color', def: '#bae6fd',
     showIf: s => /highlight|color/.test(s.lastSentence) },
   { key: 'lastSentenceWeight', section: 'skim', label: 'Last-sentence boldness', type: 'range',
-    def: 600, min: 500, max: 900, step: 50, showIf: s => /bold/.test(s.lastSentence) },
+    def: 800, min: 500, max: 900, step: 50, showIf: s => /bold/.test(s.lastSentence) },
+  { key: 'sentenceBrightness', section: 'skim', label: 'Brightness of first and last sentences', type: 'range', unit: '%',
+    def: 100, min: 0, max: 100, step: 5, showIf: s => s.firstSentence !== 'off' || s.lastSentence !== 'off',
+    hint: 'Pushes those sentences toward pure white on dark themes and pure black on light ones. 0 = same as the rest.' },
+  { key: 'middleFade', section: 'skim', label: 'Fade the middle of each paragraph', type: 'range', unit: '%',
+    def: 0, min: 0, max: 80, step: 5, cssVar: '--r-mid-c',
+    toCss: (v, s) => (v > 0 ? `color-mix(in srgb, ${contrastFg(s.fg, s.bg, s.textContrast)} ${100 - v}%, ${s.bg})` : 'inherit'),
+    hint: 'Lowers the contrast of every sentence except the first and last, so those two stand out by brightness and the middle stays readable.' },
 
   { key: 'numberStyle', section: 'skim', label: 'Numbers & statistics', type: 'select', def: 'off',
     options: STYLE_OPTIONS, strong: true },
@@ -320,7 +346,7 @@ export const SETTINGS = [
   { key: 'sentenceGap', section: 'skim', label: 'Extra space after sentences', type: 'range', unit: 'px',
     def: 0, min: 0, max: 30, step: 1, cssVar: '--r-se-gap', toCss: px },
 
-  { key: 'compress', section: 'skim', label: 'Compress text', type: 'select', def: 'off',
+  { key: 'compress', section: 'skim', label: 'Shorten the text', type: 'select', def: 'off',
     options: [
       { value: 'off', label: 'Off: full text' },
       { value: 'filler', label: 'Drop filler words (telegraph style)' },
@@ -344,12 +370,26 @@ export const SETTINGS = [
     cssVar: '--r-stripe2', showIf: s => s.stripesOn && s.stripeAlternate },
 
   /* ========================================================== FOCUS & DIM */
-  { key: 'dimOn', section: 'focus', label: 'Dim mode', type: 'bool', def: false, strong: true,
+  { key: 'dimOn', section: 'focus', label: 'Dim everything but the current lines', type: 'bool', def: false, strong: true,
     hint: 'Fades everything except the lines you are on.' },
+  { key: 'dimStyle', section: 'focus', label: 'How the dimming fades', type: 'select', def: 'gradual',
+    options: [
+      { value: 'gradual', label: 'Gradual: fainter the further from your line' },
+      { value: 'steps', label: 'Steps: one flat dim outside the clear lines' },
+    ], showIf: s => s.dimOn },
   { key: 'dimStrength', section: 'focus', label: 'Dim strength', type: 'range', unit: '%',
-    def: 60, min: 10, max: 95, step: 1, cssVar: '--r-dim', toCss: frac, showIf: s => s.dimOn },
-  { key: 'dimLines', section: 'focus', label: 'Visible lines', type: 'range',
+    def: 60, min: 10, max: 95, step: 1, cssVar: '--r-dim', toCss: frac, showIf: s => s.dimOn,
+    hint: 'Gradual: the dimming at the far end of the fade.' },
+  { key: 'dimLines', section: 'focus', label: 'Clear lines', type: 'range',
     def: 3, min: 1, max: 12, step: 1, showIf: s => s.dimOn },
+  { key: 'dimFalloff', section: 'focus', label: 'Fade length', type: 'range', unit: 'lines',
+    def: 8, min: 1, max: 40, step: 1, showIf: s => s.dimOn && s.dimStyle === 'gradual',
+    hint: 'How many lines the fade takes to reach full strength.' },
+  { key: 'dimAnchor', section: 'focus', label: 'Clear zone sits at', type: 'range', unit: '% from top',
+    def: 45, min: 10, max: 90, step: 1, showIf: s => s.dimOn,
+    hint: 'For scrolling by hand. Read-along follows the current word, Auto-scroll uses its hold position, Flow uses its guide position.' },
+  { key: 'dimGlide', section: 'focus', label: 'Glide between lines', type: 'bool', def: true, showIf: s => s.dimOn,
+    hint: 'Read-along: the clear zone slides to the next line instead of jumping.' },
   { key: 'firstLetterOn', section: 'focus', label: 'First-letter emphasis', type: 'bool',
     def: false, strong: true, rerender: true },
   { key: 'firstLetterScope', section: 'focus', label: 'Apply to', type: 'select', def: 'word',
@@ -391,7 +431,7 @@ export const SETTINGS = [
     type: 'bool', def: true },
 
   /* ================================================================== BAR */
-  { key: 'barOn', section: 'bar', label: 'Descending bar', type: 'bool', def: false, strong: true,
+  { key: 'barOn', section: 'bar', label: 'Show the guide bar', type: 'bool', def: false, strong: true,
     hint: 'A translucent band that tracks the line you are reading.' },
   { key: 'barColor', section: 'bar', label: 'Bar color', type: 'color', def: '#e11d48',
     cssVar: '--r-bar', showIf: s => s.barOn },
@@ -407,7 +447,7 @@ export const SETTINGS = [
       { value: 'line', label: 'Follows the current line' },
       { value: 'none', label: 'None' },
     ] },
-  { key: 'flowAnchor', section: 'flow', label: 'Band / line height on screen', type: 'range', unit: '% from top',
+  { key: 'flowAnchor', section: 'flow', label: 'Where the guide sits on screen', type: 'range', unit: '% from top',
     def: 45, min: 10, max: 90, step: 1 },
   { key: 'flowBandLines', section: 'flow', label: 'Band height', type: 'range', unit: 'lines',
     def: 1, min: 1, max: 6, step: 0.5, showIf: s => s.flowGuide !== 'none' },
@@ -493,13 +533,17 @@ export const SETTINGS = [
   { key: 'figureMaxWidth', section: 'pages', label: 'Figure size', type: 'range', unit: '%',
     def: 100, min: 40, max: 160, step: 5, cssVar: '--r-fig-scale', toCss: v => String(v / 100),
     showIf: s => s.showFigures },
-  { key: 'paginated', section: 'pages', label: 'Paginated (no scroll)', type: 'bool', def: false,
+  { key: 'paginated', section: 'pages', label: 'Flip pages instead of scrolling', type: 'bool', def: false,
     strong: true },
   { key: 'wordsPerPage', section: 'pages', label: 'Words per page (0 = fit to window)', type: 'range',
     def: 0, min: 0, max: 900, step: 10, showIf: s => s.paginated },
   { key: 'showPageNumbers', section: 'pages', label: 'Show page numbers', type: 'bool', def: true },
   { key: 'showPdfPageMarks', section: 'pages', label: 'Show original PDF page breaks', type: 'bool',
     def: false, rerender: true, hint: 'Thin marker where each PDF page ended.' },
+  { key: 'pageLook', section: 'pages', label: 'Show the text on paper pages', type: 'bool', def: true,
+    rerender: true, strong: true, hint: 'A sheet with a shadow, split into pages where each PDF page ended.' },
+  { key: 'pageGap', section: 'pages', label: 'Gap between pages', type: 'range', unit: 'px',
+    def: 28, min: 0, max: 80, step: 2, cssVar: '--r-page-gap', toCss: v => `${v}px`, showIf: s => s.pageLook },
 
   /* ================================================================= RAILS */
   { key: 'railsOn', section: 'rails', label: 'Show side rails', type: 'bool', def: false, strong: true },
@@ -521,16 +565,42 @@ export const SETTINGS = [
     cssVar: '--r-rsvp-bg' },
   { key: 'rsvpFg', section: 'rsvp', label: 'Box text', type: 'color', def: '#f8fafc',
     cssVar: '--r-rsvp-fg' },
-  { key: 'rsvpOrp', section: 'rsvp', label: 'ORP (middle-letter highlight)', type: 'bool', def: true,
+  { key: 'rsvpOrp', section: 'rsvp', label: 'Color the letter your eye should land on', type: 'bool', def: true,
     hint: 'Aligns every word on its optimal recognition point.' },
-  { key: 'rsvpOrpColor', section: 'rsvp', label: 'ORP color', type: 'color', def: '#f43f5e',
+  { key: 'rsvpOrpColor', section: 'rsvp', label: 'Landing-letter color', type: 'color', def: '#f43f5e',
     cssVar: '--r-orp', showIf: s => s.rsvpOrp },
-  { key: 'rsvpOrpBold', section: 'rsvp', label: 'ORP bold', type: 'bool', def: true,
+  { key: 'rsvpOrpBold', section: 'rsvp', label: 'Bold the landing letter', type: 'bool', def: true,
     cssVar: '--r-orp-weight', toCss: v => (v ? '800' : 'inherit'), showIf: s => s.rsvpOrp },
   // Renamed from rsvpGuides/rsvpContext/rsvpProgress so the new off defaults
   // apply to existing installs too.
-  { key: 'rsvpShowGuides', section: 'rsvp', label: 'ORP tick marks above and below', type: 'bool', def: false,
+  { key: 'rsvpShowGuides', section: 'rsvp', label: 'Lines above and below that letter', type: 'bool', def: false,
     showIf: s => s.rsvpOrp },
+  { key: 'rsvpGuideStyle', section: 'rsvp', label: 'Line style', type: 'select', def: 'pointer',
+    options: [
+      { value: 'ticks', label: 'Short ticks' },
+      { value: 'pointer', label: 'Pointer: a line with an arrowhead aimed at the letter' },
+      { value: 'funnel', label: 'Funnel: two lines closing in on the letter' },
+      { value: 'bracket', label: 'Bracket: a bar with a stem aimed at the letter' },
+    ], showIf: s => s.rsvpOrp && s.rsvpShowGuides },
+  { key: 'rsvpGuideLength', section: 'rsvp', label: 'Line length', type: 'range', unit: '% of text size',
+    def: 50, min: 10, max: 250, step: 5, cssVar: '--r-g-len', toCss: v => `${v / 100}`,
+    showIf: s => s.rsvpOrp && s.rsvpShowGuides },
+  { key: 'rsvpGuideSpread', section: 'rsvp', label: 'Stretch out sideways', type: 'range', unit: '% of box',
+    def: 30, min: 0, max: 100, step: 1, cssVar: '--r-g-spread', toCss: pct,
+    showIf: s => s.rsvpOrp && s.rsvpShowGuides && s.rsvpGuideStyle !== 'ticks',
+    hint: 'The lines stay put and stay this wide for every word, so your eye learns where they are.' },
+  { key: 'rsvpGuideGap', section: 'rsvp', label: 'Gap from the word', type: 'range', unit: 'px',
+    def: 4, min: 0, max: 80, step: 1, cssVar: '--r-g-gap', toCss: px,
+    showIf: s => s.rsvpOrp && s.rsvpShowGuides },
+  { key: 'rsvpGuideThickness', section: 'rsvp', label: 'Line thickness', type: 'range', unit: 'px',
+    def: 2, min: 1, max: 8, step: 0.5, cssVar: '--r-g-w', toCss: px,
+    showIf: s => s.rsvpOrp && s.rsvpShowGuides },
+  { key: 'rsvpGuideOpacity', section: 'rsvp', label: 'Line strength', type: 'range', unit: '%',
+    def: 90, min: 10, max: 100, step: 1, cssVar: '--r-g-op', toCss: frac,
+    showIf: s => s.rsvpOrp && s.rsvpShowGuides },
+  { key: 'rsvpGuideColor', section: 'rsvp', label: 'Line color', type: 'color', def: '',
+    nullable: true, cssVar: '--r-g-color', toCss: v => v || 'var(--r-orp)',
+    showIf: s => s.rsvpOrp && s.rsvpShowGuides },
   { key: 'rsvpShowContext', section: 'rsvp', label: 'Show surrounding words above and below', type: 'bool',
     def: false, hint: 'Off keeps the eye on one spot, which is the point of RSVP.' },
   { key: 'rsvpShowProgress', section: 'rsvp', label: 'Show progress bar', type: 'bool', def: false },
@@ -563,14 +633,32 @@ export const SETTINGS = [
       { value: 'flow', label: 'Flow (read-along + scroll)' },
       { value: 'rsvp', label: 'RSVP' },
     ]},
-  { key: 'takeover', section: 'behavior', label: 'Open PDFs in this reader automatically', type: 'bool',
-    def: true, hint: 'Off: use the toolbar button or Alt+R on a PDF.' },
+  { key: 'takeover', section: 'behavior', label: 'Lucid on: open PDFs here automatically', type: 'bool',
+    def: true, strong: true, hint: 'Off: PDFs open and download normally. The toolbar button or Alt+R still opens one here. Right-click the toolbar icon to switch this.' },
   { key: 'reduceMotion', section: 'behavior', label: 'Reduce animation', type: 'bool', def: false },
 ];
 
 /* ------------------------------------------------------------- utilities --- */
 
 export const BY_KEY = Object.fromEntries(SETTINGS.map(s => [s.key, s]));
+
+/** Settings shown in the Normal view; everything else waits behind Advanced. */
+export const BASIC = new Set([
+  'fontFamily', 'zoom', 'fontSize', 'lineHeight', 'columnWidth', 'columnHeight',
+  'bg', 'fg',
+  'headingScale', 'linkColor',
+  'firstSentence', 'firstSentenceWeight', 'lastSentence', 'lastSentenceWeight', 'sentenceBrightness', 'middleFade', 'numberStyle', 'nameStyle', 'compress',
+  'bionicOn', 'stripesOn', 'dimOn', 'dimStyle', 'dimFalloff',
+  'wpm', 'showTimeLeft',
+  'pacerColor', 'autoScrollHideWord', 'barOn',
+  'flowGuide', 'flowFadeAbove', 'flowFadeBelow',
+  'rsvpFontSize', 'rsvpShowContext', 'rsvpShowGuides', 'rsvpGuideStyle',
+  'pausePeriod',
+  'outlineOpen',
+  'showFigures', 'pageLook', 'paginated',
+  'railsOn',
+  'takeover', 'defaultMode', 'rememberPosition',
+].filter(k => BY_KEY[k]));
 
 export const DEFAULTS = Object.fromEntries(SETTINGS.map(s => [s.key, s.def]));
 

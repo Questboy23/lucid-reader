@@ -217,7 +217,7 @@ export function renderInto(container, blocks, settings, opts = {}) {
     // look blocks up by it.
     const bi = b0 + bLocal;
     if (block.type === 'pagebreak') {
-      if (settings.showPdfPageMarks) {
+      if (settings.showPdfPageMarks || settings.pageLook) {
         const hr = document.createElement('div');
         hr.className = 'pagemark';
         hr.dataset.page = String(block.page);
@@ -389,10 +389,13 @@ export function finishIndex(parts) {
  * the spans themselves — keeps the index, scroll position and any live pacer
  * state valid.
  */
-export function redecorate(index, settings) {
+export function redecorate(index, settings, from = 0, to = index.spans.length) {
   const { spans, text, flags } = index;
-  let sentenceStart = true;
-  for (let i = 0; i < spans.length; i++) {
+  from = Math.max(0, from);
+  to = Math.min(spans.length, to);
+  // A word starts a sentence when the word before it ended one (or a paragraph).
+  let sentenceStart = from === 0 || !!(flags[from - 1] & (FLAG.SENTENCE | FLAG.PARA));
+  for (let i = from; i < to; i++) {
     const isParaFirst = i === 0 || !!(flags[i - 1] & FLAG.PARA);
     if (isParaFirst) sentenceStart = true;
     const html = wordHtml(text[i], settings, sentenceStart, isParaFirst);

@@ -647,3 +647,51 @@
 
 /* Instant mode: nothing to approve, so no Apply/Discard bar. */
 #panel.is-live .pn-foot { display: none; }
+
+
+/* ---------------------------------------------- Normal / All settings --- */
+.pn-level { display: flex; gap: 4px; padding: 4px; margin: 0 0 14px; border-radius: 10px;
+  background: color-mix(in srgb, currentColor 8%, transparent); }
+.pn-lvl-btn { flex: 1; border: 0; background: transparent; color: inherit; font: inherit; font-weight: 600;
+  padding: 8px 0; border-radius: 7px; cursor: pointer; }
+.pn-lvl-btn[aria-pressed="true"] { background: color-mix(in srgb, currentColor 16%, transparent); }
+.pn-sec-adv { border: 0; background: transparent; color: inherit; font: inherit; font-size: 12px; font-weight: 600;
+  padding: 4px 8px; border-radius: 6px; cursor: pointer; white-space: nowrap; }
+.pn-sec-adv:hover, .pn-sec-adv[aria-pressed="true"] { background: color-mix(in srgb, currentColor 12%, transparent); }
+.pn-body:not(.lvl-adv) .pn-sec:not(.show-adv) .pn-row.pn-adv { display: none; }
+.pn-body:not(.lvl-adv) .pn-sec:not(.has-basic) { display: none; }
+.pn-body.lvl-adv .pn-sec-adv { display: none; }
+.pn-row[title] .pn-label { cursor: help; }
+
+/* ------------------------------------------------------- saved setups --- */
+/* The last block in the drawer: every look-and-feel setting under one name. */
+
+#panel .pn-setups {
+  padding: 18px var(--pn-pad) 28px;
+  border-top: 1px solid var(--ui-line);
+}
+#panel .pn-setups-title {
+  margin: 0 0 12px;
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: .02em;
+  color: var(--ui-fg);
+}
+#panel .pn-setup-new { display: flex; gap: 8px; margin-bottom: 14px; }
+#panel .pn-setup-new .pn-text { flex: 1 1 auto; min-width: 0; }
+#panel .pn-setup-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+#panel .pn-setup {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius);
+  background: var(--pn-field);
+}
+#panel .pn-setup.is-used { border-color: var(--ui-accent); box-shadow: 0 0 0 1px var(--ui-accent) inset; }
+#panel .pn-setup-title { font-size: 13.5px; font-weight: 600; color: var(--ui-fg); overflow-wrap: anywhere; }
+#panel .pn-setup-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+#panel .pn-setup-actions .pn-btn { padding: 5px 10px; font-size: 12.5px; }
+#panel .pn-setup-actions .pn-btn[aria-pressed="true"] { background: var(--ui-accent); color: #fff; border-color: var(--ui-accent); }
+#panel .pn-setup-edit { display: grid; gap: 8px; padding-top: 8px; border-top: 1px solid var(--ui-line); }
+#panel .pn-setup-restore { margin-top: 12px; }

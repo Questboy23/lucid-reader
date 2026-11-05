@@ -16,6 +16,8 @@
   --r-ws: 0px;
   --r-ps: 14px;
   --r-cw: 68ch;
+  --r-chh: 100%;
+  --r-cpos: center;
   --r-fw: 400;
   --r-align: left;
   --r-hyphens: manual;
@@ -241,7 +243,7 @@ html, body {
 
 #scroller {
   position: absolute;
-  inset: 0;
+  inset: calc((100% - var(--r-chh, 100%)) / 2) 0;
   overflow-y: auto;
   overflow-x: hidden;
   outline: none;
@@ -259,7 +261,7 @@ html, body {
   min-height: 100%;
   padding: calc(var(--r-pad) * var(--r-zoom)) 0;
   display: flex;
-  justify-content: center;
+  justify-content: var(--r-cpos, center);
 }
 
 /* ------------------------------------------------------ the text itself --- */
@@ -602,6 +604,8 @@ kbd {
   text-decoration-line: var(--r-ls-ul, none);
   background-image: linear-gradient(to bottom, transparent var(--hl-a), color-mix(in srgb, var(--r-ls-hl, transparent) calc(var(--hl-op, .55) * 100%), transparent) var(--hl-a), color-mix(in srgb, var(--r-ls-hl, transparent) calc(var(--hl-op, .55) * 100%), transparent) var(--hl-b), transparent var(--hl-b));
 }
+/* Everything between the first and last sentence of a paragraph. */
+#doc .blk:not(h1):not(h2):not(h3):not(pre) .sn:not(.fs):not(.ls) { color: var(--r-mid-c, inherit); }
 #doc .kr.num {
   font-weight: var(--r-num-w, inherit);
   color: var(--r-num-c, inherit);
@@ -617,6 +621,9 @@ kbd {
 #doc .sn, #doc .kr { text-decoration-thickness: .08em; text-underline-offset: .2em; }
 
 #doc .w.sw:not(.cur) { opacity: var(--r-sw-op, 1); }
+#doc .sn.fs .w.sw:not(.cur) { opacity: var(--r-fs-sw, var(--r-sw-op, 1)); }
+#doc .sn.ls .w.sw:not(.cur) { opacity: var(--r-ls-sw, var(--r-sw-op, 1)); }
+#doc h1 .w.sw:not(.cur), #doc h2 .w.sw:not(.cur), #doc h3 .w.sw:not(.cur) { opacity: 1; }
 #doc .w.pe { padding-inline-end: var(--r-pe-gap, 0px); }
 #doc .w.se { padding-inline-end: var(--r-se-gap, 0px); }
 
@@ -803,3 +810,24 @@ kbd {
 
 #doc .w.sr-hit { background: color-mix(in srgb, #facc15 45%, transparent); border-radius: 2px; }
 #doc .w.sr-cur { background: #fb923c; color: #111; box-shadow: 0 0 0 .12em #fb923c; }
+
+
+/* ------------------------------------------------------------ speed --- */
+/* Paragraphs off screen skip layout and paint until they scroll near.
+   `auto` in the size remembers each paragraph's real height once seen. */
+#doc p.blk { content-visibility: auto; contain-intrinsic-size: auto 5lh; overflow-clip-margin: .6em; }
+
+/* ------------------------------------------------------- paper pages --- */
+#paper { display: none; position: absolute; z-index: 0; pointer-events: none; border-radius: 4px;
+  background: var(--r-bg); box-shadow: 0 1px 2px rgba(0,0,0,.10), 0 10px 30px rgba(0,0,0,.14); }
+#app.paper #paper { display: block; }
+#app.paper #scroller { background: color-mix(in srgb, var(--r-bg) 86%, #000); }
+#app.paper #doc { padding-block: calc(var(--r-pad) * var(--r-zoom) * .8); }
+#app.paper #doc .pagemark {
+  height: var(--r-page-gap, 28px);
+  margin: calc(var(--r-pad) * var(--r-zoom) * .8) calc(-1 * max(16px, calc(var(--r-pad) * var(--r-zoom) * .5)));
+  border: 0;
+  background: color-mix(in srgb, var(--r-bg) 86%, #000);
+  box-shadow: inset 0 8px 10px -8px rgba(0,0,0,.25), inset 0 -8px 10px -8px rgba(0,0,0,.25);
+}
+#app.paper .rail .grip:hover { opacity: 1; }

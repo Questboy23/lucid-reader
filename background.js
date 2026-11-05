@@ -61,28 +61,61 @@ function ctypeRule() {
   };
 }
 
+/**
+ * The ".pdf in the URL" rule fires before the server answers, so it also
+ * caught PDFs the site meant as downloads. The Content-Type rule fires after
+ * the headers arrive and skips "attachment" responses, so downloads keep
+ * downloading. The URL rule is only a fallback for Chrome before 128.
+ */
 async function setTakeover(on) {
   const existing = await chrome.declarativeNetRequest.getDynamicRules();
   const removeRuleIds = existing.map(r => r.id);
-  if (!on) {
-    if (removeRuleIds.length) {
-      await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds });
-    }
-    return;
-  }
-  await chrome.declarativeNetRequest.updateDynamicRules({
-    removeRuleIds,
-    addRules: rules(),
-  });
-  // Best effort: older Chrome rejects responseHeaders conditions outright.
+  if (removeRuleIds.length) await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds });
+  await showState(on);
+  if (!on) return;
+  const [urlRule, fileRule] = rules();
+  await chrome.declarativeNetRequest.updateDynamicRules({ addRules: [fileRule] });
   try {
-    await chrome.declarativeNetRequest.updateDynamicRules({
-      removeRuleIds: [RULE_CTYPE],
-      addRules: [ctypeRule()],
-    });
+    await chrome.declarativeNetRequest.updateDynamicRules({ addRules: [ctypeRule()] });
   } catch {
-    /* extensionless PDFs simply won't auto-open; the toolbar button still works */
+    await chrome.declarativeNetRequest.updateDynamicRules({ addRules: [urlRule] });
   }
+}
+
+/** Badge "OFF" and the right-click menu text follow the on/off setting. */
+async function showState(on) {
+  try {
+    await chrome.action.setBadgeText({ text: on ? '' : 'OFF' });
+    await chrome.action.setBadgeBackgroundColor({ color: '#b91c1c' });
+    await chrome.action.setTitle({ title: on
+      ? 'Open in Lucid Reader (right-click to turn Lucid off)'
+      : 'Lucid Reader is off: PDFs open normally (right-click to turn on)' });
+  } catch { /* action API unavailable */ }
+  chrome.contextMenus.update('toggle-takeover', {
+    title: on ? 'Turn Lucid Reader off (PDFs open and download normally)' : 'Turn Lucid Reader on',
+  }, () => void chrome.runtime.lastError);
+}
+
+async function isOn() {
+  const { settings } = await chrome.storage.sync.get('settings').catch(() => ({}));
+  return settings?.takeover !== false;
+}
+
+async function setOn(on) {
+  const got = await chrome.storage.sync.get('settings').catch(() => ({}));
+  const settings = { ...(got.settings || {}), takeover: on };
+  await chrome.storage.sync.set({ settings }); // onChanged below applies it
+}
+
+/** Let the next page load in this tab through untouched (used to leave the reader). */
+async function allowTabOnce(tabId) {
+  const id = 900000 + (tabId % 90000);
+  await chrome.declarativeNetRequest.updateSessionRules({
+    removeRuleIds: [id],
+    addRules: [{ id, priority: 100, action: { type: 'allow' },
+      condition: { tabIds: [tabId], resourceTypes: ['main_frame'] } }],
+  });
+  setTimeout(() => chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [id] }).catch(() => {}), 15000);
 }
 
 async function syncFromSettings() {
@@ -93,6 +126,11 @@ async function syncFromSettings() {
 
 chrome.runtime.onInstalled.addListener(async details => {
   await syncFromSettings();
+  chrome.contextMenus.create({
+    id: 'toggle-takeover',
+    title: 'Turn Lucid Reader off (PDFs open and download normally)',
+    contexts: ['action'],
+  }, () => { void chrome.runtime.lastError; isOn().then(showState); });
   chrome.contextMenus.create({
     id: 'open-in-lucid',
     title: 'Open link in Lucid Reader',
@@ -129,7 +167,10 @@ async function openForTab(tab) {
   if (isReaderUrl(url)) {
     // Already in the reader — send it back to Chrome's own viewer.
     const raw = new URL(url).searchParams.get('file');
-    if (raw) chrome.tabs.update(tab.id, { url: raw });
+    if (raw) {
+      await allowTabOnce(tab.id).catch(() => {});
+      chrome.tabs.update(tab.id, { url: raw });
+    }
     return;
   }
   if (/^https?:|^file:/.test(url)) {
@@ -147,20 +188,28 @@ chrome.commands.onCommand.addListener(async command => {
   openForTab(tab);
 });
 
-chrome.contextMenus.onClicked.addListener((info, tab) => {
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  if (info.menuItemId === 'toggle-takeover') { await setOn(!(await isOn())); return; }
   if (info.menuItemId !== 'open-in-lucid' || !info.linkUrl) return;
   chrome.tabs.create({ url: readerUrlFor(info.linkUrl), index: tab ? tab.index + 1 : undefined });
 });
 
 /** The reader asks for bytes when its own fetch is blocked by CORS. */
-chrome.runtime.onMessage.addListener((msg, _sender, respond) => {
+chrome.runtime.onMessage.addListener((msg, sender, respond) => {
+  if (msg?.type === 'bypass-once' && sender.tab?.id != null) {
+    allowTabOnce(sender.tab.id).then(() => respond({ ok: true }), e => respond({ ok: false, error: String(e) }));
+    return true;
+  }
   if (msg?.type !== 'fetch-pdf' || typeof msg.url !== 'string') return false;
   fetch(msg.url, { credentials: 'include' })
     .then(async r => {
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const buf = await r.arrayBuffer();
-      // Structured clone of an ArrayBuffer over sendMessage is copied, not shared.
-      respond({ ok: true, data: Array.from(new Uint8Array(buf)) });
+      // Messages are JSON. A number array costs ~4 bytes of text per PDF byte
+      // and a slow parse; base64 costs 1.33 bytes and decodes fast.
+      const bytes = new Uint8Array(await r.arrayBuffer());
+      let bin = '';
+      for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+      respond({ ok: true, b64: btoa(bin) });
     })
     .catch(e => respond({ ok: false, error: String(e && e.message || e) }));
   return true; // async

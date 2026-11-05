@@ -21,6 +21,8 @@
  * scroll and the pacer both call it at 60Hz without a forced layout each time.
  */
 
+import { dimGradient } from './dimgrad.js';
+
 const CHUNK_MS = 6;          // measuring budget per frame; the rest is the browser's
 const CHECK_EVERY = 32;      // words between clock checks (power of two)
 const FP_SAMPLES = 48;       // spans sampled by the layout fingerprint
@@ -266,6 +268,8 @@ export function createOverlay(opts) {
     return m.bottom[b] + (m.bottom[b] - m.top[b]) * 0.3;
   }
 
+  let gradualOn = null, glideOn = null;
+
   function paint() {
     const s = getSettings() || {};
     const m = map;
@@ -309,8 +313,42 @@ export function createOverlay(opts) {
 
     const cur = (s.dimOn || s.barOn) ? currentLine(m, vh) : -1;
 
+    const gradual = !!s.dimOn && s.dimStyle !== 'steps';
+    if (gradualOn !== gradual) { gradualOn = gradual; host.classList.toggle('ov-dim-grad', gradual); }
+    const glide = gradual && !!s.dimGlide && !s.reduceMotion && (state.mode === 'readalong' || state.mode === 'rsvp');
+    if (glideOn !== glide) { glideOn = glide; host.classList.toggle('ov-dim-glide', glide); }
+
     /* dim veils — two blocks around the focus window */
-    if (s.dimOn && cur >= 0) {
+    if (gradual && m.n) {
+      // Where the clear zone sits, in overlay (scrollTop) space. Auto-scroll,
+      // Flow and hand scrolling hold it at a fixed place on screen so the text
+      // glides through it; Read-along follows the current word's line.
+      const mode = state.mode;
+      let cy = NaN;
+      if (mode === 'autoscroll' || mode === 'flow' || mode === 'normal' || mode === 'pdf') {
+        const frac = mode === 'autoscroll' ? s.pacerAnchor : mode === 'flow' ? s.flowAnchor : s.dimAnchor;
+        cy = state.scrollTop + vh * (frac ?? 45) / 100;
+      } else if (cur >= 0) {
+        cy = (m.top[cur] + m.bottom[cur]) / 2 + docOff.top;
+      }
+      if (Number.isFinite(cy)) {
+        const k = Math.min(m.n - 1, Math.max(0, lowerBound(m.top, m.n, cy - docOff.top) - 1));
+        const boxH = Math.max(1, m.bottom[k] - m.top[k]);
+        const pitch = k + 1 < m.n && m.top[k + 1] > m.top[k] && m.top[k + 1] - m.top[k] < 2 * boxH
+          ? m.top[k + 1] - m.top[k] : boxH * 1.3;
+        const half = Math.max(1, s.dimLines | 0) * pitch / 2;
+        const fade = Math.max(1, s.dimFalloff | 0) * pitch;
+        const str = (s.dimStrength ?? 60) / 100;
+        setVar('--ov-grad-up', dimGradient(str, fade, 'to top'));
+        setVar('--ov-grad-down', dimGradient(str, fade, 'to bottom'));
+        const t0 = Math.max(0, winTop);
+        place(veilTop, t0, cy - half - t0);
+        place(veilBot, cy + half, winBot - (cy + half));
+      } else {
+        hide(veilTop);
+        hide(veilBot);
+      }
+    } else if (s.dimOn && cur >= 0) {
       const lines = Math.max(1, s.dimLines | 0);
       const above = Math.floor((lines - 1) / 2);
       const a = Math.max(0, cur - above);

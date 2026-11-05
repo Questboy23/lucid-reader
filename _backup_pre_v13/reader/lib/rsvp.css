@@ -1,0 +1,156 @@
+/**
+ * RSVP box. Owns #rsvp and its descendants only.
+ *
+ * The pivot alignment is a property of the grid in .rsvp-word, not of any
+ * script: `minmax(0,1fr) auto minmax(0,1fr)` puts the pivot's advance box at
+ * the exact centre of the row for every word. The outer tracks are allowed to
+ * shrink to zero (minmax(0, …)) so a piece that is somehow wider than its
+ * track can never push the pivot; it overflows outward instead, which the
+ * flex alignment on the pieces guarantees. Everything vertical is a fixed
+ * height derived from --r-rsvp-fs so the baseline cannot drift as the
+ * surrounding words change length.
+ */
+
+#rsvp {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  /* A touch above true centre reads as centred; dead centre reads as low. */
+  padding: 20px 20px calc(20px + 4vh);
+  background: var(--r-bg);
+  overflow: hidden;
+  user-select: none;
+}
+#rsvp[hidden] { display: none; }
+
+#rsvp .rsvp-box {
+  --rsvp-ctx-fs: max(13px, calc(var(--r-rsvp-fs) * .36));
+  width: min(100%, 1040px, max(440px, calc(var(--r-rsvp-fs) * 17)));
+  display: grid;
+  grid-template-rows: auto auto auto auto;
+  padding: clamp(24px, 5vh, 44px) clamp(20px, 4vw, 48px) 0;
+  border-radius: 22px;
+  background:
+    radial-gradient(ellipse 70% 55% at 50% 42%,
+      color-mix(in srgb, var(--r-orp) 6%, transparent), transparent),
+    var(--r-rsvp-bg);
+  color: var(--r-rsvp-fg);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--r-rsvp-fg) 9%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--r-rsvp-fg) 7%, transparent),
+    0 40px 90px -36px rgb(0 0 0 / .55);
+  font-family: var(--r-font);
+  font-weight: var(--r-fw);
+  overflow: hidden;
+  animation: rsvp-in .22s ease-out both;
+}
+@keyframes rsvp-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ----------------------------------------------------------- context --- */
+
+#rsvp .rsvp-ctx {
+  height: calc(var(--rsvp-ctx-fs) * 1.6);
+  font-size: var(--rsvp-ctx-fs);
+  line-height: 1.6;
+  text-align: center;
+  white-space: pre;
+  overflow: hidden;
+  color: color-mix(in srgb, var(--r-rsvp-fg) 40%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 16%, #000 84%, transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 16%, #000 84%, transparent);
+}
+#rsvp .rsvp-prev { margin-bottom: .5em; }
+#rsvp .rsvp-next { margin-top: .5em; }
+#rsvp:not(.context) .rsvp-ctx { display: none; }
+
+/* ---------------------------------------------------------- the word --- */
+
+#rsvp .rsvp-line {
+  position: relative;
+  /* line box (1.4) plus room for the guide ticks either side (.35 each) */
+  height: calc(var(--r-rsvp-fs) * 2.1);
+  padding: calc(var(--r-rsvp-fs) * .35) 0;
+  font-size: var(--r-rsvp-fs);
+  line-height: 1.4;
+  white-space: pre;            /* a piece may end in a space: "the |a| fox" */
+  letter-spacing: 0;
+  font-variant-ligatures: none; /* the split must not change the glyphs */
+  font-kerning: normal;
+}
+
+#rsvp .rsvp-word {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: start;
+  width: 100%;
+  height: calc(var(--r-rsvp-fs) * 1.4);
+  transform-origin: 50% 50%;   /* scaling about the centre is scaling about the pivot */
+}
+
+/* Flex end/start alignment makes any overflow spill *away* from the pivot. */
+#rsvp .rsvp-pre, #rsvp .rsvp-post { display: flex; min-width: 0; }
+#rsvp .rsvp-pre  { justify-content: flex-end; }
+#rsvp .rsvp-post { justify-content: flex-start; }
+
+#rsvp .rsvp-orp {
+  color: var(--r-orp);
+  font-weight: var(--r-orp-weight);
+}
+
+/* ORP off: no highlight, no pinning — a plainly centred word. */
+#rsvp.no-orp .rsvp-word { grid-template-columns: auto auto auto; justify-content: center; }
+#rsvp.no-orp .rsvp-orp { color: inherit; font-weight: inherit; }
+
+/* ------------------------------------------------------------ guides --- */
+
+#rsvp.guides .rsvp-line {
+  border-top: 1px solid color-mix(in srgb, var(--r-rsvp-fg) 10%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--r-rsvp-fg) 10%, transparent);
+}
+#rsvp.guides .rsvp-line::before,
+#rsvp.guides .rsvp-line::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  width: 2px;
+  margin-left: -1px;
+  height: calc(var(--r-rsvp-fs) * .26);
+  border-radius: 1px;
+  background: var(--r-orp);
+  opacity: .9;
+  pointer-events: none;
+}
+#rsvp.guides .rsvp-line::before { top: 0; }
+#rsvp.guides .rsvp-line::after  { bottom: 0; }
+
+/* ---------------------------------------------------------- progress --- */
+
+#rsvp .rsvp-progress {
+  height: 3px;
+  margin-top: clamp(22px, 4.5vh, 44px);
+  background: color-mix(in srgb, var(--r-rsvp-fg) 10%, transparent);
+}
+#rsvp .rsvp-progress i {
+  display: block;
+  height: 100%;
+  background: var(--r-orp);
+  transform-origin: 0 50%;
+  transform: scaleX(0);
+  transition: transform .16s linear;
+}
+/* Keep the box's shape when the bar is off; only the bar disappears. */
+#rsvp:not(.progress) .rsvp-progress { visibility: hidden; }
+
+/* ------------------------------------------------------------ motion --- */
+
+#rsvp.rsvp-reduce .rsvp-box { animation: none; }
+#rsvp.rsvp-reduce .rsvp-progress i { transition: none; }
+@media (prefers-reduced-motion: reduce) {
+  #rsvp .rsvp-box { animation: none; }
+  #rsvp .rsvp-progress i { transition: none; }
+}

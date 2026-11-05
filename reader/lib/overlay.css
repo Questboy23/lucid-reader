@@ -62,7 +62,17 @@
 /* ------------------------------------------------------------ dim veils --- */
 
 #overlay .ov-veil {
+  left: var(--ov-col-l);
+  right: auto;
+  width: var(--ov-col-w);
   z-index: 2;
   background: var(--r-bg);
   opacity: var(--ov-dim);
 }
+
+/* Gradual dimming: opacity is baked into the gradient, which is anchored to
+   the edge next to the clear zone, so the veil can be any height. */
+#overlay.ov-dim-grad .ov-veil { opacity: 1; background: transparent; }
+#overlay.ov-dim-grad .ov-veil-top { background-image: var(--ov-grad-up); }
+#overlay.ov-dim-grad .ov-veil-bot { background-image: var(--ov-grad-down); }
+#overlay.ov-dim-glide .ov-veil { transition: top .2s cubic-bezier(.22, .61, .36, 1), height .2s cubic-bezier(.22, .61, .36, 1); }

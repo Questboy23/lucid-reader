@@ -17,14 +17,17 @@
  */
 
 import {
-  SECTIONS, SETTINGS, PRESETS, SECTION_KEYS, BY_KEY, RERENDER_KEYS,
+  SECTIONS, SETTINGS, PRESETS, SECTION_KEYS, BY_KEY, RERENDER_KEYS, BASIC,
   coerce, activePreset,
 } from './lib/schema.js';
 import { applyCssVars } from './lib/settings.js';
 import { renderInto } from './lib/markup.js';
+import {
+  loadSetups, saveSetups, makeSetup, patchOf, snapshot, matches, missingBuiltins,
+} from './lib/setups.js';
 
 const LS_COLLAPSED = 'lucid.panel.collapsed';
-const LIVE_FLUSH_MS = 100;
+const LIVE_FLUSH_MS = 30;
 const CLOSE_MS = 260;
 
 /* Which keys a preset patches — derived from the preset shape, not assumed. */
@@ -154,6 +157,7 @@ export function createPanel(opts) {
     updatePresets();
     updatePreview(keys);
     updateFooter();
+    setupsSoon();
     try { opts.onPreview?.({ ...draft }); }
     catch (e) { console.warn('[lucid] panel: onPreview failed', e); }
   }
@@ -256,6 +260,24 @@ export function createPanel(opts) {
     h('div', { class: 'pn-eyebrow', text: 'Preview' }), previewDoc);
 
   const body = h('div', { class: 'pn-body' }, preview, ...SECTIONS.map(buildSection));
+  const setupsEl = h('section', { class: 'pn-setups', 'aria-label': 'Saved setups' });
+  body.append(setupsEl);
+
+  // Normal shows the settings most people change; Advanced shows all of them.
+  const LEVEL_KEY = 'lucid-panel-level';
+  const lvlBtns = ['normal', 'advanced'].map(v => h('button', {
+    type: 'button', class: 'pn-lvl-btn', 'data-level': v, text: v === 'normal' ? 'Normal settings' : 'All settings',
+  }));
+  const setLevel = v => {
+    body.classList.toggle('lvl-adv', v === 'advanced');
+    for (const b of lvlBtns) b.setAttribute('aria-pressed', String(b.dataset.level === v));
+    try { localStorage.setItem(LEVEL_KEY, v); } catch { /* private window */ }
+  };
+  for (const b of lvlBtns) b.addEventListener('click', () => setLevel(b.dataset.level));
+  body.prepend(h('div', { class: 'pn-level', role: 'group', 'aria-label': 'How many settings to show' }, ...lvlBtns));
+  let savedLevel = 'normal';
+  try { savedLevel = localStorage.getItem(LEVEL_KEY) === 'advanced' ? 'advanced' : 'normal'; } catch { /* ignore */ }
+  setLevel(savedLevel);
 
   const pendingEl = h('span', { class: 'pn-pending', 'aria-live': 'polite' });
   const btnDiscard = h('button', { type: 'button', class: 'pn-btn', text: 'Discard' });
@@ -284,6 +306,13 @@ export function createPanel(opts) {
       'aria-label': `Reset ${sec.label} to defaults`,
     });
 
+    const defs = SETTINGS.filter(d => d.section === sec.id);
+    const nBasic = defs.filter(d => BASIC.has(d.key)).length;
+    const nAdv = defs.length - nBasic;
+    const advBtn = nBasic && nAdv
+      ? h('button', { type: 'button', class: 'pn-sec-adv', 'aria-pressed': 'false', text: `Advanced (${nAdv})` })
+      : null;
+
     const inner = h('div', { class: 'pn-sec-in' });
     if (PRESET_KEYS.length && BY_KEY[PRESET_KEYS[0]].section === sec.id) {
       inner.append(buildPresets());
@@ -294,8 +323,13 @@ export function createPanel(opts) {
     const secBody = h('div', {
       class: 'pn-sec-body', id: bodyId, role: 'region', 'aria-labelledby': btnId,
     }, inner);
-    const el = h('section', { class: 'pn-sec', 'data-sec': sec.id },
-      h('div', { class: 'pn-sec-head' }, toggle, reset), secBody);
+    const el = h('section', { class: `pn-sec${nBasic ? ' has-basic' : ''}`, 'data-sec': sec.id },
+      h('div', { class: 'pn-sec-head' }, toggle, advBtn, reset), secBody);
+    advBtn?.addEventListener('click', () => {
+      const on = el.classList.toggle('show-adv');
+      advBtn.setAttribute('aria-pressed', String(on));
+      advBtn.textContent = on ? 'Normal' : `Advanced (${nAdv})`;
+    });
 
     const setCollapsed = (yes, persist = true) => {
       el.classList.toggle('is-collapsed', yes);
@@ -335,12 +369,13 @@ export function createPanel(opts) {
 
   function buildRow(def) {
     const id = uid(def.key);
-    const hintId = def.hint ? `${id}-hint` : null;
+    const hintId = null;
     const label = h('label', {
       class: `pn-label${def.strong ? ' is-strong' : ''}`, for: id, text: def.label,
     });
     if (def.unit) label.append(' ', h('span', { class: 'pn-unit', text: `(${def.unit})` }));
-    const hint = def.hint ? h('p', { class: 'pn-hint', id: hintId, text: def.hint }) : null;
+    // Explanations live in a hover tooltip, so no caption text sits under the control.
+    const hint = null;
 
     let ctlEl;
     let set;
@@ -472,7 +507,7 @@ export function createPanel(opts) {
       }
     }
 
-    const row = h('div', { class: `pn-row pn-row-${def.type}`, 'data-key': def.key },
+    const row = h('div', { class: `pn-row pn-row-${def.type}${BASIC.has(def.key) ? '' : ' pn-adv'}`, 'data-key': def.key, title: def.hint || null },
       h('div', { class: 'pn-row-in' }, ...(boolCtl ? [boolCtl, hint] : [label, ctlEl, hint])));
     ctl.set(def.key, { def, row, set });
     return row;
@@ -558,12 +593,168 @@ export function createPanel(opts) {
   }
 
   function renderAll() {
+    if (setups.length) renderSetups?.();
     syncControls();
     applyVisibility();
     updatePresets();
     updatePreview();
     updateFooter();
   }
+
+  /* ------------------------------------------------------ saved setups --- */
+  // A setup is every look-and-feel setting under one name. Using one applies
+  // all of them (and its reading mode); Edit applies it and then lets Save
+  // changes write whatever you tweak back into it.
+
+  let setups = [];
+  let editingId = null;
+  let confirmDelete = null;
+  let usedId = null;
+
+  async function persistSetups() {
+    try { await saveSetups(setups); } catch (e) { console.warn('[lucid] panel: saving setups failed', e); }
+  }
+
+  async function useSetup(setup) {
+    flushLive();
+    const patch = patchOf(setup);
+    try {
+      if (opts.onUseSetup) await opts.onUseSetup(patch);
+      else await opts.onApply?.(patch);
+    } catch (e) { console.warn('[lucid] panel: using a setup failed', e); }
+    committed = snap();
+    draft = { ...committed };
+    touched.clear();
+    usedId = setup.id;
+    renderAll();
+  }
+
+  function nextName(base) {
+    const names = new Set(setups.map(x => x.name));
+    if (!names.has(base)) return base;
+    for (let n = 2; ; n++) if (!names.has(`${base} ${n}`)) return `${base} ${n}`;
+  }
+
+  async function saveNew(nameInput) {
+    flushLive();
+    const name = nameInput.value.trim() || nextName('My setup');
+    const made = makeSetup(name, { ...committed, ...draft });
+    setups.push(made);
+    usedId = made.id;
+    nameInput.value = '';
+    await persistSetups();
+    renderSetups();
+  }
+
+  // Built once so text typed into it survives the list being redrawn.
+  const nameInput = h('input', {
+    type: 'text', class: 'pn-text pn-setup-name', placeholder: 'Name this setup', autocomplete: 'off',
+    maxlength: '40', 'aria-label': 'Name for a new setup',
+  });
+  const btnSave = h('button', { type: 'button', class: 'pn-btn pn-btn-primary', text: 'Save current settings' });
+  btnSave.addEventListener('click', () => saveNew(nameInput));
+  nameInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); saveNew(nameInput); } });
+  const newRow = h('div', { class: 'pn-setup-new' }, nameInput, btnSave);
+
+  // Which setup the controls currently match is redrawn at most ~3 times a second while sliding.
+  let setupsTimer = 0;
+  function setupsSoon() {
+    if (setupsTimer || !setups.length) return;
+    setupsTimer = setTimeout(() => { setupsTimer = 0; renderSetups(); }, 350);
+  }
+
+  function renderSetups() {
+    const list = h('ul', { class: 'pn-setup-list' });
+    for (const st of setups) {
+      const isEditing = st.id === editingId;
+      const isUsed = matches(st, { ...committed, ...draft });
+      const use = h('button', {
+        type: 'button', class: 'pn-btn pn-setup-use', text: 'Use',
+        'aria-label': `Use ${st.name}`, 'aria-pressed': String(isUsed),
+      });
+      use.addEventListener('click', () => useSetup(st));
+      const edit = h('button', {
+        type: 'button', class: 'pn-btn', text: isEditing ? 'Editing' : 'Edit',
+        'aria-label': `Edit ${st.name}`, 'aria-pressed': String(isEditing),
+      });
+      edit.addEventListener('click', async () => {
+        if (isEditing) { editingId = null; renderSetups(); return; }
+        editingId = st.id;
+        confirmDelete = null;
+        await useSetup(st);
+        renderSetups();
+      });
+      const del = h('button', {
+        type: 'button', class: 'pn-btn', text: confirmDelete === st.id ? 'Delete it?' : 'Delete',
+        'aria-label': `Delete ${st.name}`,
+      });
+      del.addEventListener('click', async () => {
+        if (confirmDelete !== st.id) { confirmDelete = st.id; renderSetups(); return; }
+        setups = setups.filter(x => x.id !== st.id);
+        if (editingId === st.id) editingId = null;
+        confirmDelete = null;
+        await persistSetups();
+        renderSetups();
+      });
+      const li = h('li', { class: `pn-setup${isUsed ? ' is-used' : ''}${isEditing ? ' is-editing' : ''}`, 'data-id': st.id },
+        h('span', { class: 'pn-setup-title', text: st.name }),
+        h('div', { class: 'pn-setup-actions' }, use, edit, del));
+
+      if (isEditing) {
+        const rename = h('input', {
+          type: 'text', class: 'pn-text', value: st.name, maxlength: '40', autocomplete: 'off',
+          'aria-label': `Name of ${st.name}`,
+        });
+        rename.addEventListener('change', async () => {
+          st.name = rename.value.trim() || st.name;
+          await persistSetups();
+          renderSetups();
+        });
+        const update = h('button', { type: 'button', class: 'pn-btn pn-btn-primary', text: 'Save changes' });
+        update.addEventListener('click', async () => {
+          flushLive();
+          st.s = snapshot({ ...committed, ...draft });
+          st.name = rename.value.trim() || st.name;
+          usedId = st.id;
+          await persistSetups();
+          renderSetups();
+        });
+        const copy = h('button', { type: 'button', class: 'pn-btn', text: 'Save as a copy' });
+        copy.addEventListener('click', async () => {
+          flushLive();
+          const made = makeSetup(nextName(`${st.name} copy`), { ...committed, ...draft });
+          setups.splice(setups.indexOf(st) + 1, 0, made);
+          editingId = made.id;
+          usedId = made.id;
+          await persistSetups();
+          renderSetups();
+        });
+        const done = h('button', { type: 'button', class: 'pn-btn', text: 'Done' });
+        done.addEventListener('click', () => { editingId = null; renderSetups(); });
+        li.append(h('div', { class: 'pn-setup-edit' }, rename, h('div', { class: 'pn-setup-actions' }, update, copy, done)));
+      }
+      list.append(li);
+    }
+
+    const missing = missingBuiltins(setups);
+    const restore = missing.length
+      ? h('button', { type: 'button', class: 'pn-textbtn pn-setup-restore', text: `Add back the ${missing.length} fast-reading setup${missing.length === 1 ? '' : 's'}` })
+      : null;
+    restore?.addEventListener('click', async () => {
+      setups = [...missing, ...setups];
+      await persistSetups();
+      renderSetups();
+    });
+
+    setupsEl.replaceChildren(...[
+      h('h3', { class: 'pn-setups-title', text: 'Saved setups' }),
+      newRow,
+      list,
+      restore,
+    ].filter(Boolean));
+  }
+
+  loadSetups().then(l => { setups = l; renderSetups(); }).catch(e => console.warn('[lucid] panel: loading setups failed', e));
 
   /* ---------------------------------------------------- open / close --- */
 
@@ -636,6 +827,7 @@ export function createPanel(opts) {
     close();
     clearTimeout(closeTimer);
     clearTimeout(liveTimer);
+    clearTimeout(setupsTimer);
     root.removeEventListener('keydown', onKeyDown);
     root.removeEventListener('keyup', swallow);
     root.removeEventListener('keypress', swallow);

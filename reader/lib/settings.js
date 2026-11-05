@@ -47,7 +47,15 @@ export function get() {
 
 export async function load() {
   const got = await backend.get(KEY);
-  current = normalize(got?.[KEY] ?? {});
+  const raw = { ...(got?.[KEY] ?? {}) };
+  // v2: bolder first sentence, last sentence bold too (older saves had 650 / off).
+  if ((raw._v ?? 1) < 2) {
+    if (!(raw.firstSentenceWeight > 650)) raw.firstSentenceWeight = 800;
+    if (!raw.lastSentence || raw.lastSentence === 'off') raw.lastSentence = raw.firstSentence && raw.firstSentence !== 'off' ? raw.firstSentence : 'bold';
+    if (!(raw.lastSentenceWeight > 650)) raw.lastSentenceWeight = 800;
+  }
+  current = normalize(raw);
+  if ((raw._v ?? 1) < 2) backend.set({ [KEY]: { ...current, _v: 2 } }).catch(() => {});
   return current;
 }
 
@@ -56,10 +64,28 @@ export async function save(patch) {
   const next = normalize({ ...current, ...patch });
   const changed = SETTINGS.filter(s => next[s.key] !== current[s.key]).map(s => s.key);
   current = next;
-  await backend.set({ [KEY]: next });
+  // Show the change first, write it to disk after. Chrome's synced storage
+  // takes tens of ms per write and allows only 120 writes a minute, so a
+  // slider drag used to wait on it (and then hit the limit).
   if (changed.length) emit(changed);
+  persistSoon();
   return next;
 }
+
+let persistTimer = 0;
+let persistDone = Promise.resolve();
+function persistSoon() {
+  clearTimeout(persistTimer);
+  persistTimer = setTimeout(() => {
+    persistDone = backend.set({ [KEY]: { ...current, _v: 2 } }).catch(e => console.warn('[lucid] settings save failed', e));
+  }, 400);
+}
+/** Resolves once the latest settings are on disk (used before leaving the page). */
+export function flush() {
+  if (persistTimer) { clearTimeout(persistTimer); persistTimer = 0; persistDone = backend.set({ [KEY]: { ...current, _v: 2 } }); }
+  return persistDone;
+}
+if (typeof window !== 'undefined') window.addEventListener('pagehide', () => { flush(); });
 
 /** Reset everything, or only the given keys, to schema defaults. */
 export async function reset(keys) {
@@ -95,9 +121,18 @@ backend.onChanged.addListener((changes, area) => {
  * Used both for the reader root and for the panel's live preview box, which is
  * why it takes an explicit element instead of assuming :root.
  */
+const lastVars = new WeakMap();
 export function applyCssVars(el, s = current) {
   const vars = cssVars(s);
-  for (const [k, v] of Object.entries(vars)) el.style.setProperty(k, v);
+  // Only touch variables that changed: each write on the root can make
+  // Chrome restyle every word in the book.
+  let seen = lastVars.get(el);
+  if (!seen) { seen = new Map(); lastVars.set(el, seen); }
+  for (const [k, v] of Object.entries(vars)) {
+    if (seen.get(k) === v) continue;
+    seen.set(k, v);
+    el.style.setProperty(k, v);
+  }
 }
 
 /* ------------------------------------------------- reading position memory */
