@@ -33,6 +33,7 @@ export const SECTIONS = [
   { id: 'stripes',    label: 'Stripes: tint every few lines',                       icon: 'highlighter',group: 3 },
   { id: 'focus',      label: 'Focus: dim all but the lines you read',                        icon: 'focus',      group: 3 },
   { id: 'speed',      label: 'Speed & time left (all paced modes)', icon: 'sliders',   group: 1 },
+  { id: 'topbar',     label: 'Top bar: hide it, pick what it shows (H)', icon: 'layout', group: 1 },
   { id: 'pacer',      label: 'Read-along: lights up each word at your pace (2)',                icon: 'sparkles',   group: 2 },
   { id: 'autoscroll', label: 'Auto-scroll: the page scrolls at your pace (3)',               icon: 'sparkles',   group: 2 },
   { id: 'bar',        label: 'Guide bar that moves down the page (2 & 3)',       icon: 'layout',     group: 2 },
@@ -415,6 +416,19 @@ export const SETTINGS = [
   { key: 'timeLeftClock', section: 'speed', label: 'Include the finish time', type: 'bool', def: true,
     showIf: s => s.showTimeLeft },
 
+  /* ================================================================ TOP BAR */
+  { key: 'headerHidden', section: 'topbar', label: 'Hide the top bar', type: 'bool', def: false, strong: true,
+    hint: 'H hides and shows it. A small tab at the top right brings it back.' },
+  { key: 'hdrNextChapter', section: 'topbar', label: 'Time to next chapter', type: 'bool', def: true },
+  { key: 'hdrBookEnd', section: 'topbar', label: 'Time to book end', type: 'bool', def: true },
+  { key: 'hdrSkipBackMatter', section: 'topbar', label: 'Skip bibliography, index, notes, appendix', type: 'bool', def: true,
+    hint: 'Book end stops at the first back-matter heading in the second half of the document.' },
+  { key: 'hdrChapterName', section: 'topbar', label: 'Current chapter name', type: 'bool', def: false },
+  { key: 'hdrWholeDoc', section: 'topbar', label: 'Time to end of whole PDF', type: 'bool', def: false },
+  { key: 'hdrPercent', section: 'topbar', label: 'Percent of book read', type: 'bool', def: false },
+  { key: 'hdrPage', section: 'topbar', label: 'Page number', type: 'bool', def: false },
+  { key: 'hdrFinishClock', section: 'topbar', label: 'Clock time you finish the book', type: 'bool', def: false },
+
   /* ============================================================ READ-ALONG */
   { key: 'pacerColor', section: 'pacer', label: 'Pacer color', type: 'color', def: '#e11d48',
     cssVar: '--r-pacer' },
@@ -621,7 +635,7 @@ export const SETTINGS = [
 
   /* ============================================================== BEHAVIOR */
   { key: 'keyboardShortcuts', section: 'behavior', label: 'Keyboard shortcuts', type: 'bool', def: true,
-    hint: 'Space play/pause · ←/→ word · ↑/↓ line · J/K speed · 1-6 modes · F flow · T time left · S settings.' },
+    hint: 'Space play/pause · ←/→ word · ↑/↓ line · J/K speed · 1-6 modes · F flow · T time left · H top bar · S settings.' },
   { key: 'applyInstantly', section: 'behavior', label: 'Apply changes instantly', type: 'bool', def: true,
     hint: 'Off: changes preview in the panel until you click Apply.' },
   { key: 'rememberPosition', section: 'behavior', label: 'Remember where I stopped', type: 'bool', def: true },
@@ -650,6 +664,7 @@ export const BASIC = new Set([
   'firstSentence', 'firstSentenceWeight', 'lastSentence', 'lastSentenceWeight', 'sentenceBrightness', 'middleFade', 'numberStyle', 'nameStyle', 'compress',
   'bionicOn', 'stripesOn', 'dimOn', 'dimStyle', 'dimFalloff',
   'wpm', 'showTimeLeft',
+  'headerHidden', 'hdrNextChapter', 'hdrBookEnd', 'hdrSkipBackMatter', 'hdrChapterName', 'hdrWholeDoc', 'hdrPercent', 'hdrPage', 'hdrFinishClock',
   'pacerColor', 'autoScrollHideWord', 'barOn',
   'flowGuide', 'flowFadeAbove', 'flowFadeBelow',
   'rsvpFontSize', 'rsvpShowContext', 'rsvpShowGuides', 'rsvpGuideStyle',

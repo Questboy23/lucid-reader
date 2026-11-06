@@ -117,6 +117,48 @@ html, body {
 }
 .sub { display: block; font-size: 11px; color: var(--ui-fg-dim); }
 
+#hdr-info {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-left: 6px;
+  padding-left: 10px;
+  border-left: 1px solid var(--ui-line);
+  color: var(--ui-fg);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#hdr-info:empty { display: none; }
+
+/* Hidden top bar: its grid row collapses to zero, a small tab brings it back. */
+#app.hdr-hidden { --tb-h: 0px; }
+#app.hdr-hidden #topbar { visibility: hidden; border: 0; padding: 0; }
+#hdr-show {
+  position: absolute;
+  top: 0;
+  right: 14px;
+  z-index: 6;
+  width: 34px;
+  height: 16px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-line);
+  border-top: 0;
+  border-radius: 0 0 8px 8px;
+  color: var(--ui-fg);
+  cursor: pointer;
+  opacity: 0.18;
+  transition: opacity 0.15s;
+}
+#hdr-show[hidden] { display: none; }
+#hdr-show:hover, #hdr-show:focus-visible { opacity: 1; }
+#hdr-show svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.reduce-motion #hdr-show { transition: none; }
+
 #modes {
   display: flex;
   gap: 2px;

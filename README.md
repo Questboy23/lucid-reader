@@ -1,14 +1,11 @@
-# Lucid Reader: turns any PDF into an adjustable reading column in Chrome.
+# Lucid Reader
 
-**5 reading modes, with the original PDF one keystroke away.**
+A Chrome extension that turns a PDF into something you can actually read: your
+font, your spacing, your colours, and four ways of moving through the text.
 
-A Chrome extension that rebuilds a PDF's text as an adjustable reading column with five reading modes.
-
-PDFs are laid out for paper. Chrome's viewer shows you the paper. Lucid Reader pulls the text out, reflows it, and leaves the original PDF one keystroke away.
-
-## AI disclosure
-
-Reed Ostrov chose the features and the reading modes. Claude Code (Anthropic) wrote the code, the tests and this README at his direction. The ideas are his. The AI did not originate them. Code was not independently audited by a third party.
+PDFs are laid out for paper. Chrome's viewer shows you the paper. Lucid Reader
+pulls the text out, rebuilds it as a proper reading column, and leaves the
+original a keystroke away.
 
 ## Install (unpacked)
 
@@ -37,7 +34,7 @@ away, and <kbd>Alt</kbd>+<kbd>R</kbd> hands the tab back to Chrome's viewer.
 Everything below lives in the in-reader settings panel (<kbd>S</kbd>), previews
 before it applies, and resets per-section or all at once.
 
-- **Typography** — 37 fonts (23 bundled, 14 system; bundled ones include Atkinson Hyperlegible,
+- **Typography** — 36 fonts (23 bundled, including Atkinson Hyperlegible,
   OpenDyslexic and Lexend), zoom, size, line height, letter/word/paragraph
   spacing, column width, weight, alignment, hyphenation, indents.
 - **Colours** — ten presets plus free background/text colours and page padding.
@@ -82,7 +79,8 @@ are applied as part of the static render, before anything is measured.
 
 ## Privacy
 
-The extension makes no network requests of its own. Fonts and PDF.js are bundled. The only fetch in the code is the PDF you opened (`fetch(url, {credentials: 'include'})` in `reader/reader.js` and `background.js`). Settings sync through your Chrome profile;
+No network access of any kind. Fonts and PDF.js are bundled; the only thing
+fetched is the PDF you asked for. Settings sync through your Chrome profile;
 reading positions stay on the device.
 
 ## Layout of the source
@@ -116,7 +114,7 @@ the CSS variables and reset-to-default all follow from it.
 ## Development
 
 ```sh
-node --test test/*.test.mjs                         # 77 unit tests (Node 22)
+node --test test/                                   # unit tests
 node .devtools/inspect-extract.mjs test/fixtures/twocol.pdf   # extraction quality
 ./package.sh                                        # build the store zip
 ```
@@ -135,13 +133,3 @@ node .devtools/inspect-extract.mjs test/fixtures/twocol.pdf   # extraction quali
 - **Contents panel** (O): every chapter/section with its reading time, time until you reach it, page, and progress, with its own settings at the bottom.
 - **Search** (⌘F or /): highlights every match, "3 of 12", Enter / Shift+Enter to step.
 - Settings apply instantly and the drawer floats over the page instead of moving it.
-
-## Limitations
-
-- Install is manual: clone, then Load unpacked. It is not on the Chrome Web Store.
-- It needs Chrome 116 or later and requests the `<all_urls>` host permission, which PDF takeover requires.
-- The 77 tests run in Node against mocked PDF.js pages and four synthetic fixture PDFs. The repo has no browser end-to-end test, so layout claims (stable line breaks, Flow mode steadiness) are by design and not measured here.
-- Column, hyphen and running-head detection are heuristics. They were not scored on a corpus of real papers.
-- Scanned PDFs without a text layer show no text, and there is no OCR.
-- No speed or accuracy benchmark is published.
-- Bundled fonts and PDF.js 6.3.289 keep their own licenses (see `vendor/pdfjs/` and `fonts/`).

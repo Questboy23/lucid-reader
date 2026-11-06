@@ -10,6 +10,7 @@ import * as pdfjs from '../vendor/pdfjs/pdf.min.mjs';
 import { DEFAULTS, SECTION_KEYS, BY_KEY } from './lib/schema.js';
 import * as store from './lib/settings.js';
 import { renderInto, finishIndex, redecorate, FLAG } from './lib/markup.js';
+import { findChapters, headerInfo } from './lib/hdrinfo.js';
 import { extractDocument, addFigures } from './lib/extract.js';
 import { cacheKey, loadDoc, saveDoc } from './lib/cache.js';
 import { createOverlay } from './lib/overlay.js';
@@ -49,6 +50,8 @@ const el = {
   modes: $('modes'),
   title: $('doc-title'),
   sub: $('doc-sub'),
+  hdrInfo: $('hdr-info'),
+  hdrShow: $('hdr-show'),
   progress: $('progress'),
   progressBar: $('progress').firstElementChild,
   statusLeft: $('status-left'),
@@ -400,6 +403,7 @@ async function render() {
     if (blocks.length > CHUNK) await new Promise(r => (document.hidden ? setTimeout(r, 0) : requestAnimationFrame(r)));
   }
   state.index = finishIndex(parts);
+  state.chapters = findChapters(state.index, state.doc);
 
   buildEngines();
   outline?.rebuild();
@@ -519,6 +523,10 @@ function applySettings(changed) {
   el.app.classList.toggle('pacer-underline', s.pacerUnderline);
   el.app.classList.toggle('pacer-tint', s.pacerTintText);
   el.app.classList.toggle('reduce-motion', s.reduceMotion);
+  el.app.classList.toggle('hdr-hidden', s.headerHidden);
+  el.hdrShow.hidden = !s.headerHidden;
+  if (changed?.some(k => k === 'headerHidden')) requestAnimationFrame(() => relayout());
+  if (changed?.some(k => k.startsWith('hdr'))) updateHeaderInfo();
   el.app.classList.toggle('hide-word', state.mode === 'autoscroll' && s.autoScrollHideWord);
   if (el.wpm.value !== String(s.wpm)) el.wpm.value = String(s.wpm);
 
@@ -903,8 +911,24 @@ function scrollFraction() {
   return max > 0 ? el.scroller.scrollTop / max : 0;
 }
 
+function updateHeaderInfo() {
+  const n = state.index?.count ?? 0;
+  if (!n || !state.chapters) { el.hdrInfo.textContent = ''; return; }
+  const scrolled = state.mode === 'normal' || state.mode === 'pdf';
+  const pos = scrolled ? Math.round(scrollFraction() * n) : state.word;
+  const wpm = state.settings.wpm;
+  const txt = headerInfo({
+    pos, count: n, ch: state.chapters, s: state.settings,
+    msLeft: from => (pacer?.remainingMs ? pacer.remainingMs(from) : ((n - from) / wpm) * 60000),
+    page: state.index.pageOf[Math.min(pos, n - 1)] || 1,
+    pages: state.doc.numPages,
+  });
+  if (el.hdrInfo.textContent !== txt) el.hdrInfo.textContent = txt;
+}
+
 function updateStatus() {
   const n = state.index?.count ?? 0;
+  updateHeaderInfo();
   if (!n) {
     el.statusLeft.textContent = state.doc ? `${state.doc.numPages} pages · no text layer` : '';
     el.statusRight.textContent = '';
@@ -1069,6 +1093,9 @@ function onKey(e) {
     case 't': case 'T':
       store.save({ showTimeLeft: !state.settings.showTimeLeft });
       break;
+    case 'h': case 'H':
+      store.save({ headerHidden: !state.settings.headerHidden });
+      break;
     case 's': case 'S':
       e.preventDefault();
       panel.toggle();
@@ -1110,6 +1137,7 @@ function buildShortcutsCard() {
     ['1 – 6', 'Normal · Read-along · Auto-scroll · Flow · RSVP · Original PDF'],
     ['F', 'Start Flow (read-along + scroll)'],
     ['T', 'Show or hide the "done in" estimate'],
+    ['H', 'Hide or show the top bar'],
     ['O', 'Contents panel (chapters, timings)'],
     ['⌘F /', 'Search the document'],
     ['S', 'Reading settings'],
@@ -1149,6 +1177,9 @@ function wireChrome() {
     seekTo(i);
     toast(`Jumped to page ${p}`);
   }, true);
+
+  $('btn-hide-header').addEventListener('click', () => store.save({ headerHidden: true }));
+  el.hdrShow.addEventListener('click', () => store.save({ headerHidden: false }));
 
   $('btn-play').addEventListener('click', togglePlay);
   $('btn-prev').addEventListener('click', () => pacer?.step(-1));

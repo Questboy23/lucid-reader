@@ -31,6 +31,7 @@
         <span id="doc-title">Lucid Reader</span>
         <span id="doc-sub" class="sub"></span>
       </div>
+      <div id="hdr-info" aria-live="off"></div>
     </div>
 
     <nav id="modes" role="tablist" aria-label="Reading mode">
@@ -62,11 +63,18 @@
       <button id="btn-search" class="iconbtn" title="Search (⌘F or /)" aria-label="Search the document">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M16 16l4 4"/></svg>
       </button>
+      <button id="btn-hide-header" class="iconbtn" title="Hide the top bar (H)" aria-label="Hide the top bar">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg>
+      </button>
       <button id="btn-settings" class="iconbtn" title="Reading settings (S)" aria-label="Reading settings">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10M14 4v6M8 14v6"/></svg>
       </button>
     </div>
   </header>
+
+  <button id="hdr-show" title="Show the top bar (H)" aria-label="Show the top bar" hidden>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+  </button>
 
   <div id="progress" role="progressbar" aria-label="Reading progress" aria-valuemin="0" aria-valuemax="100"><i></i></div>
 
