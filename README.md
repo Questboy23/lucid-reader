@@ -1,4 +1,6 @@
-# Lucid Reader
+# Lucid Reader: turns any PDF into an adjustable reading column in Chrome.
+
+**5 reading modes, with the original PDF one keystroke away.**
 
 A Chrome extension that rebuilds a PDF's text as an adjustable reading column with five reading modes.
 
